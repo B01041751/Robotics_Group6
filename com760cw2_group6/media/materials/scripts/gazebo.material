@@ -1,0 +1,17 @@
+material Apocalypse/StoneTexture
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.5 0.5 0.5
+      diffuse 0.7 0.7 0.7
+      
+      texture_unit
+      {
+        texture stone.jpg
+        scale 0.5 0.5
+      }
+    }
+  }
+}

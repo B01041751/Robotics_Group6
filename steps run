@@ -1,0 +1,18 @@
+cd /home/ubuntu/com760cw2_group6
+catkin_make
+source devel/setup.bash
+
+roslaunch com760cw2_group6 group_6_launch.launch
+rosrun rqt_image_view rqt_image_view
+
+chmod +x /home/ubuntu/com760cw2_group6/src/com760cw2_group6/scripts/hazard_env.py
+
+cd ~/com760cw2_group6/src/com760cw2_group6/scripts
+ls
+python3 hazard_train.py
+
+cd /home/ubuntu/com760cw2_group6/src/com760cw2_group6/scripts/
+chmod +x hazard_oscillator.py
+rosrun com760cw2_group6 hazard_oscillator.py
+
+

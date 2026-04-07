@@ -1,0 +1,22 @@
+<launch>
+    <env name="GAZEBO_RESOURCE_PATH" 
+         value="$(find com760cw2_group6)/media/materials/scripts:$(find com760cw2_group6)/media/materials/textures:$(optenv GAZEBO_RESOURCE_PATH)"/>
+         
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="world_name" value="$(find com760cw2_group6)/worlds/environment_foot.world"/>
+        <arg name="paused" value="false"/>
+        <arg name="use_sim_time" value="true"/>
+        <arg name="gui" value="true"/>
+    </include>
+
+    <group ns="group6bot_0">
+        <param name="robot_description" 
+               command="$(find xacro)/xacro '$(find com760cw2_group6)/urdf/group6bot_0.urdf.xacro'" />
+        
+        <node pkg="gazebo_ros" type="spawn_model" name="spawn_urdf" 
+              args="-urdf -model group6bot_0 -x 0.0 -y 0.0 -z 0.1 -param robot_description" />
+        
+        <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" />
+
+        </group>
+</launch>
