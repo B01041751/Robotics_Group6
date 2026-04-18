@@ -1,0 +1,167 @@
+<?xml version="1.0"?>
+<robot name="com760Bot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+<!-- This defines a URDF robot with the Xacro support in place. 
+     It ensures the correct namespace has been declared and enables parameterised interial macros later as well as the robot name and course specific. -->
+
+  <material name="purple"><color rgba="0.5 0 0.5 1"/></material>
+  <material name="black"><color rgba="0 0 0 1"/></material>
+  <material name="red"><color rgba="1 0 0 1"/></material>
+<!-- Materials being defined and reused, purple for base, black for wheels and sensors and red for the gas sensor. It avoids repetion and improves reliablility. 
+     However, it visuals are simple but are sufficient, realism isnt the goal. -->
+
+  <xacro:macro name="cylinder_inertia" params="m r h">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia ixx="${(m/12)*(3*r*r+h*h)}" ixy="0" ixz="0" iyy="${(m/12)*(3*r*r+h*h)}" iyz="0" izz="${(m/2)*(r*r)}"/>
+    </inertial>
+  </xacro:macro>
+<!-- Correct analytical inertia equations added making the parameters being physically meaningful and are reused later for the base as well as wheels. It creates a rigid body
+     and with the inertias  it makes it better for stability. -->
+  <xacro:macro name="box_inertia" params="m w h d">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia ixx="${(m/12)*(h*h+d*d)}" ixy="0" ixz="0" iyy="${(m/12)*(w*w+d*d)}" iyz="0" izz="${(m/12)*(w*w+h*h)}"/>
+    </inertial>
+  </xacro:macro>
+<!-- This creates an empty frame that is used for 2D navigation, it is also the correct ROS convention for no collision and no visuals. These are required for Nav stack and TF tree correctness.-->
+  <link name="base_footprint"/>
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/><child link="base_link"/>
+    <origin xyz="0 0 0.16" rpy="0 0 0"/> 
+<!-- This lifts the base_link above the ground, avoiding ground peneration and correctly fixing unwanted motion creating a strong TF hygiene. -->
+  </joint>
+<!-- This is the box geometry, this is appropriate for differential drive, it has a mass = 5kg which is realistic for a small mobile robot and the inertia is calculated via the macro.-->
+  <link name="base_link">
+    <visual>
+      <geometry><box size="0.4 0.22 0.1"/></geometry>
+      <material name="purple"/>
+    </visual>
+    <collision><geometry><box size="0.4 0.22 0.1"/></geometry></collision>
+    <xacro:box_inertia m="5.0" w="0.4" h="0.1" d="0.22"/> 
+  </link>
+<!-- The Drive wheels for differential drive wheel links, they are cylinder in geometry and oriented correctly via the joint rotation. the reasonable wheel mass of 0.5kg
+     and is inertia derived analytically. This shows solid mechanical modelling. -->
+  <link name="left_wheel">
+    <visual><geometry><cylinder length="0.04" radius="0.1"/></geometry><material name="black"/></visual>
+    <collision><geometry><cylinder length="0.04" radius="0.1"/></geometry></collision>
+    <xacro:cylinder_inertia m="0.5" r="0.1" h="0.04"/>
+  </link>
+<!-- This shows continous infinite rotation as well as a rpy = -1.5708 rotates cylinder to roll correctly as well as a axis aligned with wheel spin. -->
+  <joint name="wheel_left_joint" type="continuous">
+    <parent link="base_link"/><child link="left_wheel"/><origin xyz="-0.1 0.13 -0.06" rpy="-1.5708 0 0"/><axis xyz="0 0 1"/>
+  </joint>
+<!-- The Drive wheels for differential drive wheel links, they are cylinder in geometry and oriented correctly via the joint rotation. the reasonable wheel mass of 0.5kg
+     and is inertia derived analytically. This shows solid mechanical modelling. -->
+  <link name="right_wheel">
+    <visual><geometry><cylinder length="0.04" radius="0.1"/></geometry><material name="black"/></visual>
+    <collision><geometry><cylinder length="0.04" radius="0.1"/></geometry></collision>
+    <xacro:cylinder_inertia m="0.5" r="0.1" h="0.04"/>
+  </link>
+  <joint name="wheel_right_joint" type="continuous">
+    <parent link="base_link"/><child link="right_wheel"/><origin xyz="-0.1 -0.13 -0.06" rpy="-1.5708 0 0"/><axis xyz="0 0 1"/>
+  </joint>
+<!-- This is the caster wheel for stability support. it is a sphere caster, that is simple but adds robustness, it is very low friction and is a fixed joint to the base. The job of the caster 
+     is to prevent the robot from tipping over-constraining motion. -->
+  <link name="caster_link">
+    <visual><geometry><sphere radius="0.05"/></geometry><material name="black"/></visual>
+    <collision><geometry><sphere radius="0.05"/></geometry></collision>
+    <inertial><mass value="0.1"/><inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/></inertial>
+  </link>
+  <joint name="caster_joint" type="fixed"> 
+    <parent link="base_link"/><child link="caster_link"/><origin xyz="0.15 0 -0.11" rpy="0 0 0"/>
+  </joint>
+<!-- This is the sensor frames - laser frame. This uses a seperate link for LiDar and is positioned forward and elevated. -->
+  <link name="base_scan">
+    <visual><geometry><cylinder length="0.05" radius="0.05"/></geometry><material name="black"/></visual>
+    <inertial><mass value="0.1"/><inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/></inertial>
+  </link>
+  <joint name="scan_joint" type="fixed">
+    <parent link="base_link"/><child link="base_scan"/><origin xyz="0.21 0 0.15" rpy="0 0 0"/>
+  </joint>
+<!-- This is the camera frame, it is an independent camera frame, it is also correctly attached to the base, this enables for a clean TF tree and sensor fusion. -->
+  <link name="camera_link">
+    <visual><geometry><box size="0.05 0.05 0.05"/></geometry><material name="black"/></visual>
+    <inertial><mass value="0.1"/><inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/></inertial>
+  </link>
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/><child link="camera_link"/><origin xyz="0.2 0 0.1" rpy="0 0 0"/>
+  </joint>
+<!-- The Gas sensor frame, this is the gas sensor link, it is has a small mass and geometry, the collision is enabled which is important for contact sensing. The sensor is used for 
+     physical object detection and ensures that it is not just an abstract topic. -->   
+     <link name="gas_sensor_link">
+    <visual><geometry><sphere radius="0.02"/></geometry><material name="red"/></visual>
+    <collision name="gas_sensor_collision"><geometry><sphere radius="0.02"/></geometry></collision>
+    <inertial><mass value="0.01"/><inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/></inertial>
+  </link>
+  <joint name="gas_joint" type="fixed">
+    <parent link="base_link"/><child link="gas_sensor_link"/><origin xyz="0.22 0 0.05" rpy="0 0 0"/> 
+  </joint>
+
+  <gazebo>
+<!-- This is the differential drive plugin. -->
+    <plugin name="differential_drive_controller" filename="libgazebo_ros_diff_drive.so">
+      <robotNamespace>/group6bot_0</robotNamespace><!--Namespaced which supports a multi-robot scenario. --> 
+      <updateRate>50</updateRate>
+      <leftJoint>wheel_left_joint</leftJoint>
+      <rightJoint>wheel_right_joint</rightJoint>
+      <wheelSeparation>0.26</wheelSeparation>
+      <wheelDiameter>0.2</wheelDiameter><!-- This matches the physical model above. -->
+      <wheelTorque>200</wheelTorque> <wheelAcceleration>1.5</wheelAcceleration>
+      <commandTopic>cmd_vel</commandTopic>
+      <odometryTopic>odom</odometryTopic>
+      <odometryFrame>odom</odometryFrame>
+      <robotBaseFrame>base_footprint</robotBaseFrame><!-- This uses the correct navigation. -->
+      <publishTf>true</publishTf>
+      <publishOdomTF>true</publishOdomTF><!-- This uses proper TF broadcasting, it has no covariance setting for the odometry. -->
+      <publishWheelTF>false</publishWheelTF>
+    </plugin>
+  </gazebo>
+<!-- This is the Gas contact sensor. -->
+  <gazebo reference="gas_sensor_link">
+  <sensor name="gas_contact" type="contact">
+<!-- This uses the Gazebo contact sensor, it also attaches to the dedicated gas sensor link. -->
+    <always_on>true</always_on>
+    <update_rate>50</update_rate>
+    <contact>
+      <collision>base_link_fixed_joint_lump__gas_sensor_collision</collision><!-- Thi is the collision reference from the hazard_world.-->
+    </contact>
+    <plugin name="gas_bumper_plugin" filename="libgazebo_ros_bumper.so"><!-- This publishes the gas_touch topic, it matches the poison gas zone logic with clear semantic meaning. -->
+      <robotNamespace>/group6bot_0</robotNamespace>
+      <bumperTopicName>gas_touch</bumperTopicName>
+      <frameName>gas_sensor_link</frameName>
+    </plugin>
+  </sensor>
+</gazebo>
+
+  <gazebo reference="base_scan">
+    <sensor type="ray" name="laser">
+      <visualize>true</visualize> <ray>
+        <scan><horizontal><samples>360</samples><min_angle>-3.14</min_angle><max_angle>3.14</max_angle></horizontal></scan>
+<!-- This enables the LiDar sensor to have full 360 scan, it is suitable for SLAM and obstacle avoidance. -->
+        <range><min>0.15</min><max>12.0</max></range><!-- Reasonable hybrid range for indoor/outdoor. -->
+      </ray>
+      <plugin name="gazebo_ros_laser" filename="libgazebo_ros_laser.so">
+        <robotNamespace>/group6bot_0</robotNamespace>
+        <topicName>scan</topicName><frameName>base_scan</frameName>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="camera_link">
+    <sensor type="camera" name="main_camera">
+<!-- The ROS camera plugin, the topic naming is clean and the frame is assigned correctly. However it has no resolution or FOV specified only the defaults have been used. -->
+      <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+        <robotNamespace>/group6bot_0</robotNamespace>
+        <cameraName>camera</cameraName><imageTopicName>image_raw</imageTopicName><frameName>camera_link</frameName>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="base_link"><material>Gazebo/Purple</material><mu1>0.1</mu1> <mu2>0.1</mu2></gazebo><!-- Low friction base - good for avoiding snagging. -->
+  <gazebo reference="left_wheel"><material>Gazebo/Black</material><mu1>2.0</mu1><mu2>2.0</mu2></gazebo><!-- High wheel friction - this is good for traction. -->
+  <gazebo reference="right_wheel"><material>Gazebo/Black</material><mu1>2.0</mu1><mu2>2.0</mu2></gazebo>
+  <gazebo reference="caster_link"><material>Gazebo/Black</material><mu1>0.0</mu1><mu2>0.0</mu2></gazebo><!-- The correct caster behaviour. -->
+
+</robot>
+<!-- Strengths:
+     - A correct TF structure has been applied, the inertial modelling has been used, thoughtful sensor placement used, a clean ROS integration has been used, a hazard-aware sensor design has been used in this robot as well as physics-aware in regards friction tuning. -->

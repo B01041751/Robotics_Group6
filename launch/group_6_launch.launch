@@ -1,0 +1,76 @@
+<launch>
+    <env name="GAZEBO_RESOURCE_PATH"
+         value="$(find com760cw2_group6)/media/materials/scripts:$(find com760cw2_group6)/media/materials/textures:$(optenv GAZEBO_RESOURCE_PATH)"/>
+
+    <!-- Generate randomised world layout before Gazebo starts.
+         $(eval ...) is evaluated at parse time, so this blocks until the
+         script finishes writing environment_foot.world and layout.json. -->
+    <arg name="_gen" default="$(eval __import__('subprocess').call(
+        [__import__('sys').executable,
+         __import__('rospkg').RosPack().get_path('com760cw2_group6') + '/scripts/generate_world.py']))"/>
+
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="world_name" value="$(find com760cw2_group6)/worlds/environment_foot.world"/>
+        <arg name="paused" value="false"/>
+        <arg name="use_sim_time" value="true"/>
+        <arg name="gui" value="true"/>
+    </include>
+
+    <!-- ============================================ -->
+    <!-- GROUP6BOT_0 (PPO Hazard Navigation Robot) -->
+    <!-- ============================================ -->
+    <group ns="group6bot_0">
+        <param name="robot_description" 
+               command="$(find xacro)/xacro '$(find com760cw2_group6)/urdf/group6bot_0.urdf.xacro'" />
+        
+        <node pkg="gazebo_ros" type="spawn_model" name="spawn_urdf" 
+              args="-urdf -model group6bot_0 -x 0.0 -y 0.0 -z 0.1 -param robot_description" />
+        
+        <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" />
+    </group>
+
+    <!-- ============================================ -->
+    <!-- GROUP6BOT_1 (Alternative Algorithms Robot) -->
+    <!-- ============================================ -->
+    <group ns="group6bot_1">
+        <param name="robot_description" 
+               command="$(find xacro)/xacro '$(find com760cw2_group6)/urdf/Group6Bot_1.urdf'" />
+        
+        <node pkg="gazebo_ros" type="spawn_model" name="spawn_urdf" 
+              args="-urdf -model group6bot_1 -x 3.0 -y 0.0 -z 0.1 -param robot_description" />
+        
+        <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" />
+
+        <!-- Camera Viewer for Bot 1 -->
+        <node pkg="com760cw2_group6" type="Group6Bot_1_camera_view.py" name="camera_viewer" output="screen" />
+
+        <!-- Exploration Algorithm for Bot 1 -->
+        <node pkg="com760cw2_group6" type="Group6Bot_1_explore.py" name="explorer" output="screen" />
+
+        <!-- Bug Algorithm Service Server -->
+        <node pkg="com760cw2_group6" type="bug_service_server.py" name="bug_server" output="screen" />
+    </group>
+
+    <!-- ============================================ -->
+    <!-- TRAINING & MONITORING NODES -->
+    <!-- ============================================ -->
+    
+    <!-- Hazard Environment with Oscillating Obstacles -->
+    <node pkg="com760cw2_group6" type="hazard_oscillator.py" name="hazard_oscillator" output="screen" />
+
+    <!-- Moving Fireballs -->
+    <node pkg="com760cw2_group6" type="moving_fireballs.py" name="moving_fireballs" output="screen" />
+
+    <!-- Q-Learning Publisher -->
+    <node pkg="com760cw2_group6" type="q_learning_rewards.py" name="q_learning_publisher" output="screen" />
+
+    <!-- Monitor Node -->
+    <node pkg="com760cw2_group6" type="group6_monitor.py" name="group6_monitor" output="screen" />
+
+    <!-- ============================================ -->
+    <!-- TRAINING NODE (PPO) - Optional -->
+    <!-- Uncomment the line below to start training automatically -->
+    <!-- ============================================ -->
+    <!-- <node pkg="com760cw2_group6" type="hazard_train.py" name="hazard_train" output="screen" /> -->
+
+</launch>

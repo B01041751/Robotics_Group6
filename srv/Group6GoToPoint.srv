@@ -1,0 +1,4 @@
+bool flag	 #e.g.for enabling/disabling the provided service
+float32 speed 	 #Set to spped e.g. 3 (m/s) - the speed at which the robot will travel
+---
+string message 	 #Informational e.g.for successfully triggering a service or error messages 

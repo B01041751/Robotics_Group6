@@ -1,0 +1,39 @@
+import math
+
+def generate_tree_xml(name, x, y):
+    return f"""
+    <include>
+      <uri>model://pine_tree</uri>
+      <name>{name}</name>
+      <pose>{x:.2f} {y:.2f} 0 0 0 0</pose>
+    </include>"""
+
+def create_foot_shape():
+    trees = []
+    # Parameters for the "Ball" of the foot (Large Circle)
+    ball_center_x, ball_center_y = 5, 0
+    ball_rx, ball_ry = 12, 10
+    
+    # Parameters for the "Heel" (Small Circle)
+    heel_center_x, heel_center_y = -8, -2
+    heel_rx, heel_ry = 6, 5
+
+    # Generate Ball Perimeter (from -90 to 150 degrees to leave a gap for the arch)
+    for i in range(-90, 160, 15):
+        rad = math.radians(i)
+        x = ball_center_x + ball_rx * math.cos(rad)
+        y = ball_center_y + ball_ry * math.sin(rad)
+        trees.append((x, y))
+
+    # Generate Heel Perimeter
+    for i in range(110, 320, 20):
+        rad = math.radians(i)
+        x = heel_center_x + heel_rx * math.cos(rad)
+        y = heel_center_y + heel_ry * math.sin(rad)
+        trees.append((x, y))
+
+    for idx, (x, y) in enumerate(trees):
+        print(generate_tree_xml(f"tree_{idx}", x, y))
+
+if __name__ == "__main__":
+    create_foot_shape()

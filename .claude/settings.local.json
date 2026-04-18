@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 \"C:\\\\Users\\\\hasha\\\\Desktop\\\\Claude Code\\\\Group6\\\\scripts\\\\generate_world.py\")",
+      "Bash(py -3 \"C:\\\\Users\\\\hasha\\\\Desktop\\\\Claude Code\\\\Group6\\\\scripts\\\\generate_world.py\")",
+      "Bash(python3 -c \"import numpy; print\\('numpy ok'\\)\")"
+    ]
+  }
+}
