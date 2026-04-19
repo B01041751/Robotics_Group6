@@ -50,6 +50,8 @@ include_directories(
 catkin_install_python(PROGRAMS
   scripts/moving_fireballs.py
   scripts/mission_node_group6.py
+  scripts/group6bot_0_main.py
+  scripts/group6bot_0_subscriber.py
   scripts/hazard_train.py
   scripts/hazard_env.py
   scripts/hazard_oscillator.py
@@ -59,6 +61,9 @@ catkin_install_python(PROGRAMS
   scripts/Group6Bot_1_camera_view.py
   scripts/move_robot2_circle.py
   scripts/q_learning_rewards.py
+  scripts/group6_monitor.py
+  scripts/generate_world.py
+  scripts/tunnel_flicker.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

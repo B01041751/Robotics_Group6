@@ -135,8 +135,8 @@
 
   <gazebo reference="base_scan">
     <sensor type="ray" name="laser">
-      <visualize>true</visualize> <ray>
-        <scan><horizontal><samples>360</samples><min_angle>-3.14</min_angle><max_angle>3.14</max_angle></horizontal></scan>
+      <visualize>false</visualize> <ray>
+        <scan><horizontal><samples>360</samples><min_angle>-3.1</min_angle><max_angle>3.1</max_angle></horizontal></scan>
 <!-- This enables the LiDar sensor to have full 360 scan, it is suitable for SLAM and obstacle avoidance. -->
         <range><min>0.15</min><max>12.0</max></range><!-- Reasonable hybrid range for indoor/outdoor. -->
       </ray>
@@ -149,7 +149,7 @@
 
   <gazebo reference="camera_link">
     <sensor type="camera" name="main_camera">
-<!-- The ROS camera plugin, the topic naming is clean and the frame is assigned correctly. However it has no resolution or FOV specified only the defaults have been used. -->
+      <visualize>false</visualize>
       <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
         <robotNamespace>/group6bot_0</robotNamespace>
         <cameraName>camera</cameraName><imageTopicName>image_raw</imageTopicName><frameName>camera_link</frameName>

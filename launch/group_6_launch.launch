@@ -2,12 +2,9 @@
     <env name="GAZEBO_RESOURCE_PATH"
          value="$(find com760cw2_group6)/media/materials/scripts:$(find com760cw2_group6)/media/materials/textures:$(optenv GAZEBO_RESOURCE_PATH)"/>
 
-    <!-- Generate randomised world layout before Gazebo starts.
-         $(eval ...) is evaluated at parse time, so this blocks until the
-         script finishes writing environment_foot.world and layout.json. -->
-    <arg name="_gen" default="$(eval __import__('subprocess').call(
-        [__import__('sys').executable,
-         __import__('rospkg').RosPack().get_path('com760cw2_group6') + '/scripts/generate_world.py']))"/>
+    <!-- Run world generator synchronously before Gazebo starts -->
+    <param name="_world_generated"
+           command="python3 $(find com760cw2_group6)/scripts/generate_world.py" />
 
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <arg name="world_name" value="$(find com760cw2_group6)/worlds/environment_foot.world"/>
@@ -44,11 +41,11 @@
         <!-- Camera Viewer for Bot 1 -->
         <node pkg="com760cw2_group6" type="Group6Bot_1_camera_view.py" name="camera_viewer" output="screen" />
 
-        <!-- Exploration Algorithm for Bot 1 -->
-        <node pkg="com760cw2_group6" type="Group6Bot_1_explore.py" name="explorer" output="screen" />
+        <!-- Exploration Algorithm for Bot 1 (disabled) -->
+        <!-- <node pkg="com760cw2_group6" type="Group6Bot_1_explore.py" name="explorer" output="screen" /> -->
 
-        <!-- Bug Algorithm Service Server -->
-        <node pkg="com760cw2_group6" type="bug_service_server.py" name="bug_server" output="screen" />
+        <!-- Bug Algorithm Service Server (disabled) -->
+        <!-- <node pkg="com760cw2_group6" type="bug_service_server.py" name="bug_server" output="screen" /> -->
     </group>
 
     <!-- ============================================ -->
@@ -58,14 +55,17 @@
     <!-- Hazard Environment with Oscillating Obstacles -->
     <node pkg="com760cw2_group6" type="hazard_oscillator.py" name="hazard_oscillator" output="screen" />
 
-    <!-- Moving Fireballs -->
-    <node pkg="com760cw2_group6" type="moving_fireballs.py" name="moving_fireballs" output="screen" />
+    <!-- moving_fireballs.py removed: it published to the same /hazard_1/cmd_vel and
+         /hazard_2/cmd_vel topics as hazard_oscillator.py, causing them to fight. -->
 
     <!-- Q-Learning Publisher -->
     <node pkg="com760cw2_group6" type="q_learning_rewards.py" name="q_learning_publisher" output="screen" />
 
     <!-- Monitor Node -->
     <node pkg="com760cw2_group6" type="group6_monitor.py" name="group6_monitor" output="screen" />
+
+    <!-- Tunnel lamp flicker -->
+    <node pkg="com760cw2_group6" type="tunnel_flicker.py" name="tunnel_flicker" output="screen" />
 
     <!-- ============================================ -->
     <!-- TRAINING NODE (PPO) - Optional -->

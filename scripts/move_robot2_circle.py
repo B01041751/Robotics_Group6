@@ -1,10 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import rospy
 from geometry_msgs.msg import Twist
 
 def move_circle():
-    pub = rospy.Publisher('/Group6Bot_1/cmd_vel', Twist, queue_size=10)
+    pub = rospy.Publisher('/group6bot_1/cmd_vel', Twist, queue_size=10)
     rospy.init_node('bot_mover')
 
     vel_msg = Twist()

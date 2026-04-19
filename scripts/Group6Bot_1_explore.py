@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import rospy
+import numpy as np
 from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
@@ -178,7 +179,6 @@ class Bug2Navigator:
 
 if __name__ == '__main__':
     try:
-        import numpy as np
         navigator = Bug2Navigator()
         rospy.spin()
     except rospy.ROSInterruptException:

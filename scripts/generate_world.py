@@ -32,7 +32,7 @@ import numpy as np
 PKG_DIR   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORLD_OUT = os.path.join(PKG_DIR, 'worlds', 'environment_foot.world')
 LAYOUT_OUT = os.path.join(PKG_DIR, 'worlds', 'layout.json')
-MEDIA_URI  = 'file:///home/ubuntu/catkin_ws/src/com760cw2_group6/media/materials'
+MEDIA_URI  = f'file://{PKG_DIR}/media/materials'
 
 # ---------------------------------------------------------------------------
 # Arena geometry
@@ -99,6 +99,15 @@ def build_layout():
     tree_x, tree_y = result if result else (-7.0, 7.0)
     placed.append((tree_x, tree_y, TREE_R))
 
+    # ── Gas zone + mannequin (cylinder r = 2.5 m; bounding r = 2.8 m) ──────
+    # Placed before stones so it gets priority on open space.
+    # Bounding radius trimmed from 3.2 → 2.8 m (still 0.3 m beyond the visual cylinder).
+    GAS_R   = 2.8
+    GAS_LIM = INNER - GAS_R   # 7.0 m
+    result = try_place(-GAS_LIM, GAS_LIM, -GAS_LIM, GAS_LIM, GAS_R, placed)
+    gas_x, gas_y = result if result else (2.0, -6.0)
+    placed.append((gas_x, gas_y, GAS_R))
+
     # ── 6 stones (bounding radius ≈ 1.2 m each) ────────────────────────────
     STONE_R   = 1.2
     STONE_LIM = INNER - STONE_R   # 8.6 m
@@ -123,14 +132,6 @@ def build_layout():
         stones.append({'x': ox, 'y': oy, 'z': z_off,
                        'sx': sx, 'sy': sy, 'sz': sz, 'rot': rot})
         placed.append((ox, oy, STONE_R))
-
-    # ── Gas zone + mannequin (cylinder r = 2.5 m; bounding r = 3.2 m) ──────
-    # The mannequin is placed at a random position *inside* the cylinder.
-    GAS_R   = 3.2
-    GAS_LIM = INNER - GAS_R   # 6.6 m
-    result = try_place(-GAS_LIM, GAS_LIM, -GAS_LIM, GAS_LIM, GAS_R, placed)
-    gas_x, gas_y = result if result else (2.0, -6.0)
-    placed.append((gas_x, gas_y, GAS_R))
 
     victim_r   = float(np.random.uniform(0.2, 1.5))
     victim_ang = float(np.random.uniform(0.0, 2.0 * math.pi))
@@ -266,9 +267,6 @@ def write_world(layout):
       <attenuation><range>6.0</range><constant>0.3</constant></attenuation>
       <direction>0 0 -1</direction>
       <spot><inner_angle>0.6</inner_angle><outer_angle>1.5</outer_angle></spot>
-      <plugin name="light_control" filename="libgazebo_ros_light_control.so">
-        <flicker>true</flicker>
-      </plugin>
     </light>
 
     <!-- ═══════════ FIXED: ground and outer walls ═══════════ -->
@@ -306,12 +304,17 @@ def write_world(layout):
 
     <!-- ═══════════ RANDOMISED: interior objects ═══════════ -->
 
-    <include>
-      <name>corner_tree</name>
-      <uri>model://oak_tree</uri>
-      <pose>{tr['x']:.3f} {tr['y']:.3f} 0 0 0 0</pose>
+    <model name="corner_tree">
       <static>true</static>
-    </include>
+      <pose>{tr['x']:.3f} {tr['y']:.3f} 1.0 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.3</radius><length>2.0</length></cylinder></geometry></collision>
+        <visual name="trunk"><geometry><cylinder><radius>0.3</radius><length>2.0</length></cylinder></geometry>
+          <material><script><uri>{uri}/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+        <visual name="canopy"><pose>0 0 1.5 0 0 0</pose><geometry><sphere><radius>1.5</radius></sphere></geometry>
+          <material><script><uri>{uri}/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+      </link>
+    </model>
 
     <model name="path_tunnel">
       <static>true</static>
@@ -407,14 +410,15 @@ def write_world(layout):
     <!-- Mannequin placed at a random position inside the gas cylinder -->
     <model name="gas_victim">
       <static>true</static>
-      <pose>{v['x']:.3f} {v['y']:.3f} 0.05 1.57 0 {v['yaw']:.4f}</pose>
+      <pose>{v['x']:.3f} {v['y']:.3f} 0.0 0 0 {v['yaw']:.4f}</pose>
       <link name="link">
         <collision name="c">
           <pose>0 0.7 0.1 0 0 0</pose>
           <geometry><box><size>0.5 1.8 0.4</size></box></geometry>
         </collision>
         <visual name="v">
-          <geometry><mesh><uri>model://person_standing/meshes/standing.dae</uri></mesh></geometry>
+          <pose>0 0 0.9 0 0 0</pose>
+          <geometry><cylinder><radius>0.25</radius><length>1.8</length></cylinder></geometry>
           <material><script>
             <uri>{uri}/scripts</uri>
             <name>Victim/Clothed</name>

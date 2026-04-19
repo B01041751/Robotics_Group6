@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import json
 import rospy
-import gym
+import rospkg
+import gymnasium as gym
 import numpy as np
 import math
 import tf
@@ -23,8 +24,9 @@ class HazardWorldEnv(gym.Env):
         self.cmd_vel_pub = rospy.Publisher(f'{self.ns}/cmd_vel', Twist, queue_size=10)
         
         # --- AUDIO PATHS ---
-        self.bg_music_path = "/home/ubuntu/com760cw2_group6/src/com760cw2_group6/sound/beto.wav"
-        self.alarm_path = "/home/ubuntu/com760cw2_group6/src/com760cw2_group6/sound/alarm.wav"
+        _pkg = rospkg.RosPack().get_path('com760cw2_group6')
+        self.bg_music_path = os.path.join(_pkg, 'sound', 'beto.wav')
+        self.alarm_path = os.path.join(_pkg, 'sound', 'alarm.wav')
         self.music_process = None
         self.alarm_played = False 
 
@@ -47,7 +49,7 @@ class HazardWorldEnv(gym.Env):
         rospy.Subscriber(f'{self.ns}/odom', Odometry, self.odom_callback)
         rospy.Subscriber(f'{self.ns}/scan', LaserScan, self.scan_callback)
         rospy.Subscriber(f'{self.ns}/camera/image_raw', Image, self.image_callback)
-        rospy.Subscriber(f'{self.ns}/gas_touch', ContactsState, self.gas_callback)
+        rospy.Subscriber('/gas_touch', ContactsState, self.gas_callback)
 
         self.bridge = CvBridge()
         self.pose = None
@@ -92,7 +94,7 @@ class HazardWorldEnv(gym.Env):
             if os.path.exists(self.bg_music_path):
                 # Loop the background music so it doesn't stop during long training
                 self.music_process = subprocess.Popen(
-                    f"while :; do aplay -q {self.bg_music_path}; done", 
+                    f"while :; do aplay -q '{self.bg_music_path}'; done",
                     shell=True, preexec_fn=os.setsid
                 )
                 rospy.loginfo("Background music started (looping).")
@@ -170,22 +172,23 @@ class HazardWorldEnv(gym.Env):
         if self.in_gas:
             self.play_alarm()
             reward += 1000
-            done = True
+            return obs, reward, True, False, {}
 
-        if np.min(self.laser_sectors) < 0.35: # Tightened collision box
+        if np.min(self.laser_sectors) < 0.35:
             reward -= 200
-            done = True
+            return obs, reward, True, False, {}
 
         if dist_to_goal < 0.8:
             reward += 500
             if self.current_state_idx < len(self.states) - 1:
                 self.current_state_idx += 1
             else:
-                done = True
+                return obs, reward, True, False, {}
 
-        return obs, reward, done, {}
+        return obs, reward, False, False, {}
 
-    def reset(self):
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
         # Stop robot before reset
         self.cmd_vel_pub.publish(Twist())
         try:
@@ -194,12 +197,16 @@ class HazardWorldEnv(gym.Env):
             self.unpause_proxy()
             rospy.sleep(0.5)
         except: pass
-        
+
         self.current_state_idx = 0
         self.in_gas = False
-        self.alarm_played = False 
-        return self.get_obs()
+        self.alarm_played = False
+        return self.get_obs(), {}
 
     def __del__(self):
         if self.music_process:
-            os.killpg(os.getpgid(self.music_process.pid), signal.SIGTERM)
+            try:
+                os.killpg(os.getpgid(self.music_process.pid), signal.SIGKILL)
+                self.music_process.wait()
+            except: pass
+            self.music_process = None

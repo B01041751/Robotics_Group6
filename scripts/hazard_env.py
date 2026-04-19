@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import rospy
+import rospkg
 import gymnasium as gym
 import numpy as np
 import math
@@ -24,8 +25,9 @@ class HazardWorldEnv(gym.Env):
         self.cmd_vel_pub = rospy.Publisher(f'{self.ns}/cmd_vel', Twist, queue_size=10)
         
         # Audio
-        self.bg_music_path = "/home/ubuntu/com760cw2_group6/src/com760cw2_group6/sound/beto.wav"
-        self.alarm_path = "/home/ubuntu/com760cw2_group6/src/com760cw2_group6/sound/alarm.wav"
+        _pkg = rospkg.RosPack().get_path('com760cw2_group6')
+        self.bg_music_path = os.path.join(_pkg, 'sound', 'beto.wav')
+        self.alarm_path = os.path.join(_pkg, 'sound', 'alarm.wav')
         self.music_process = None
         self.alarm_played = False 
 
@@ -44,7 +46,7 @@ class HazardWorldEnv(gym.Env):
         rospy.Subscriber(f'{self.ns}/odom', Odometry, self.odom_callback)
         rospy.Subscriber(f'{self.ns}/scan', LaserScan, self.scan_callback)
         rospy.Subscriber(f'{self.ns}/camera/image_raw', Image, self.image_callback)
-        rospy.Subscriber(f'{self.ns}/gas_touch', ContactsState, self.gas_callback)
+        rospy.Subscriber('/gas_touch', ContactsState, self.gas_callback)
 
         self.bridge = CvBridge()
         self.pose = None
@@ -66,19 +68,8 @@ class HazardWorldEnv(gym.Env):
             'GAS_CLOUD':     (2.5, -6.5)   
         }
 
-        # Track if environment has been randomized (only randomize on first run)
+        # Randomize once on first reset() call, not here, to avoid double randomization
         self.first_run = True
-        
-        # Randomize environment immediately on init
-        rospy.loginfo("🎲 Initializing and randomizing environment on startup...")
-        try:
-            rospy.sleep(2.0)  # Wait for Gazebo to fully initialize
-            self.randomize_targets()
-            self.randomize_fireballs()
-            self.randomize_robot_spawn()
-            rospy.loginfo("✅ Environment randomization completed at startup")
-        except Exception as e:
-            rospy.logwarn(f"Initial randomization warning: {e}")
 
         self.action_space = gym.spaces.Box(
             low=np.array([0.1, -1.0], dtype=np.float32), 
@@ -93,9 +84,11 @@ class HazardWorldEnv(gym.Env):
 
     def cleanup_audio(self):
         if self.music_process:
-            try: os.killpg(os.getpgid(self.music_process.pid), signal.SIGKILL)
+            try:
+                os.killpg(os.getpgid(self.music_process.pid), signal.SIGKILL)
+                self.music_process.wait()
             except: pass
-        subprocess.call(["pkill", "-9", "aplay"], stderr=subprocess.DEVNULL)
+            self.music_process = None
 
     def randomize_targets(self):
         """Randomize waypoint positions while maintaining sequence structure"""
@@ -114,26 +107,37 @@ class HazardWorldEnv(gym.Env):
             ry = np.random.uniform(y_min, y_max)
             self.targets[state_name] = (rx, ry)
         
-        # Move mannequin and gas zone together
+        # Move mannequin and gas zone together with a random yaw
         gas_x, gas_y = self.targets['GAS_CLOUD']
-        self.move_mannequin(gas_x, gas_y)
+        self.move_mannequin(gas_x, gas_y, yaw=float(np.random.uniform(0.0, 2.0 * math.pi)))
         
         rospy.loginfo(f"🎲 Environment randomized: {self.targets}")
 
-    def move_mannequin(self, x, y):
-        """Move mannequin to stay with gas zone"""
+    def move_mannequin(self, x, y, yaw=0.0):
+        """Move mannequin to stay with gas zone, combining 90-deg pitch with randomised yaw"""
         try:
+            # Combine pitch=90deg (about X) and yaw (about Z) into one quaternion.
+            # pitch quaternion: qx=sin(pi/4), qw=cos(pi/4)
+            # yaw   quaternion: qz=sin(yaw/2), qw=cos(yaw/2)
+            half_yaw = yaw / 2.0
+            qx = math.cos(half_yaw) * 0.707
+            qy = math.sin(half_yaw) * 0.707
+            qz = math.sin(half_yaw) * 0.707
+            qw = math.cos(half_yaw) * 0.707
+
             state = ModelState()
             state.model_name = 'gas_victim'
             state.pose.position.x = x
             state.pose.position.y = y
             state.pose.position.z = 0.05
-            state.pose.orientation.x = 0.707  # 1.57 radians = 90 degrees pitch
-            state.pose.orientation.w = 0.707
+            state.pose.orientation.x = qx
+            state.pose.orientation.y = qy
+            state.pose.orientation.z = qz
+            state.pose.orientation.w = qw
             state.twist.linear.x = 0
             state.twist.linear.y = 0
             state.twist.linear.z = 0
-            
+
             self.set_model_state(state)
             rospy.loginfo(f"💀 Mannequin moved to gas zone at ({x:.2f}, {y:.2f})")
         except Exception as e:
@@ -186,7 +190,7 @@ class HazardWorldEnv(gym.Env):
     def start_background_music(self):
         if os.path.exists(self.bg_music_path):
             try:
-                cmd = f"while :; do aplay -q {self.bg_music_path}; done"
+                cmd = f"while :; do aplay -q '{self.bg_music_path}'; done"
                 self.music_process = subprocess.Popen(cmd, shell=True, preexec_fn=os.setsid)
             except: pass
 
@@ -249,32 +253,30 @@ class HazardWorldEnv(gym.Env):
         dist_to_goal = obs[8] * 15.0
         current_target_name = self.states[self.current_state_idx]
 
-        # --- SEQUENCE LOCK ---
-        if self.in_gas or (current_target_name != 'GAS_CLOUD' and dist_to_goal < 2.0 and "GAS" in current_target_name):
-            if current_target_name != 'GAS_CLOUD':
-                print(f"!!! ILLEGAL SHORTCUT: Resetting from {current_target_name} !!!")
-                reward -= 5000000
-                done = True
-                return obs, reward, done, False, {}
+        # --- SEQUENCE LOCK: penalise entering gas before reaching GAS_CLOUD waypoint ---
+        if self.in_gas and current_target_name != 'GAS_CLOUD':
+            print(f"!!! ILLEGAL GAS ENTRY: Resetting from {current_target_name} !!!")
+            reward -= 5000000
+            return obs, reward, True, False, {}
 
         # 1. COLLISION LOGIC
         if min_laser < 0.22:
             if current_target_name == 'GAS_CLOUD':
                 self.play_alarm()
                 reward += 500000000
-                done = True
                 print(">>>> MISSION COMPLETE <<<<")
+                return obs, reward, True, False, {}
             else:
-                reward -= 2000000 
-                done = True
+                reward -= 2000000
                 print(f"!!! CRASH RESET: {current_target_name} !!!")
+                return obs, reward, True, False, {}
 
         # 2. CHECKPOINT SUCCESS
         if dist_to_goal < 1.0:
             if current_target_name == 'GAS_CLOUD':
                 self.play_alarm()
                 reward += 500000000
-                done = True
+                return obs, reward, True, False, {}
             else:
                 reward += 20000000
                 self.current_state_idx += 1
@@ -312,5 +314,4 @@ class HazardWorldEnv(gym.Env):
         self.in_gas = False
         self.alarm_played = False
         self.prev_dist = 15.0
-        self.pose = None
         return self.get_obs(), {}

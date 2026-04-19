@@ -150,7 +150,7 @@
   <joint name="camera_joint" type="fixed">
         <parent link="base_link"/>
         <child link="camera_link"/>
-        <origin xyz="0.25 0 0" rpy="0 0 0"/>
+        <origin xyz="0.0 0 0.35" rpy="0 0.6 0"/>
     </joint>
 
     <link name="camera_link">
@@ -177,10 +177,10 @@
 
         <sensor name="camera" type="camera">
             <pose> 0 0 0 0 0 0 </pose>
-            <visualize>true</visualize>
+            <visualize>false</visualize>
             <update_rate>10</update_rate>
             <camera>
-                <horizontal_fov>1.089</horizontal_fov>
+                <horizontal_fov>1.9</horizontal_fov>
                 <image>
                     <format>R8G8B8</format>
                     <width>640</width>
@@ -188,7 +188,7 @@
                 </image>
                 <clip>
                     <near>0.05</near>
-                    <far>8.0</far>
+                    <far>30.0</far>
                 </clip>
             </camera>
             <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
@@ -220,13 +220,14 @@
 
 <gazebo reference="laser_link">
   <sensor type="ray" name="laser">
+    <visualize>false</visualize>
     <update_rate>10</update_rate>
     <ray>
       <scan>
         <horizontal>
           <samples>720</samples>
-          <min_angle>-1.57</min_angle>
-          <max_angle>1.57</max_angle>
+          <min_angle>-1.5</min_angle>
+          <max_angle>1.5</max_angle>
         </horizontal>
       </scan>
       <range>

@@ -2,11 +2,12 @@
 
 import json
 import rospy
-import gym
+import rospkg
+import gymnasium as gym
 import numpy as np
 import os
 import subprocess
-from gym import spaces
+from gymnasium import spaces
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
@@ -24,13 +25,17 @@ class HazardAudioEnv(gym.Env):
             pass # Already initialized
 
         # 🎵 AUDIO PATHS
-        self.bg_music = "/home/ubuntu/com760cw2_group6/src/com760cw2_group6/sound/beto.wav"
-        self.alarm_sound = "/home/ubuntu/com760cw2_group6/src/com760cw2_group6/sound/alarm.wav"
+        _pkg = rospkg.RosPack().get_path('com760cw2_group6')
+        self.bg_music = os.path.join(_pkg, 'sound', 'beto.wav')
+        self.alarm_sound = os.path.join(_pkg, 'sound', 'alarm.wav')
         self.bg_process = None
 
         # 🤖 ROS INTERFACE
         self.pub_vel = rospy.Publisher('/group6bot_0/cmd_vel', Twist, queue_size=1)
+        rospy.wait_for_service('/gazebo/reset_simulation')
         self.reset_proxy = rospy.ServiceProxy('/gazebo/reset_simulation', Empty)
+        rospy.wait_for_service('/gazebo/unpause_physics')
+        self.unpause_proxy = rospy.ServiceProxy('/gazebo/unpause_physics', Empty)
         
         # Subscribe to sensors
         rospy.Subscriber('/group6bot_0/scan', LaserScan, self.laser_callback)
@@ -40,8 +45,8 @@ class HazardAudioEnv(gym.Env):
         # Action: [Linear Velocity (0.1 to 0.5), Angular Velocity (-1.0 to 1.0)]
         # Starting at 0.1 linear prevents the "frozen robot" issue during early training
         self.action_space = spaces.Box(
-            low=np.array([0.1, -1.0]), 
-            high=np.array([0.5, 1.0]),
+            low=np.array([0.1, -1.0], dtype=np.float32),
+            high=np.array([0.5, 1.0], dtype=np.float32),
             dtype=np.float32
         )
 
@@ -84,27 +89,24 @@ class HazardAudioEnv(gym.Env):
     def laser_callback(self, data):
         self.prev_laser_data = np.copy(self.laser_data)
         num_sectors = 12
-        samples_per_sector = len(data.ranges) // num_sectors
-        pooled_scan = []
-        for i in range(num_sectors):
-            # Clean laser data from inf/nan
-            sector = data.ranges[i*samples_per_sector : (i+1)*samples_per_sector]
-            clean_sector = [s if (s > 0.1 and not np.isinf(s)) else 10.0 for s in sector]
-            pooled_scan.append(np.min(clean_sector))
-        self.laser_data = np.array(pooled_scan)
+        ranges = np.array(data.ranges, dtype=np.float32)
+        ranges = np.where(np.isfinite(ranges), ranges, 10.0)
+        samples_per_sector = len(ranges) // num_sectors
+        sectors = ranges[:samples_per_sector * num_sectors].reshape(num_sectors, samples_per_sector)
+        self.laser_data = np.min(sectors, axis=1)
 
     def odom_callback(self, data):
         self.robot_pos = np.array([data.pose.pose.position.x, data.pose.pose.position.y])
 
     def get_obs(self):
         delta_laser = self.laser_data - self.prev_laser_data
-        return np.concatenate([self.laser_data, delta_laser, self.robot_pos, [float(self.current_wp_idx)]])
+        return np.concatenate([self.laser_data, delta_laser, self.robot_pos, [float(self.current_wp_idx)]]).astype(np.float32)
 
     def trigger_alarm(self):
         rospy.loginfo("🎯 MISSION SUCCESS: TARGET REACHED")
         self.stop_bg_music()
         self.pub_vel.publish(Twist()) 
-        os.system(f"aplay {self.alarm_sound} &")
+        subprocess.Popen(["aplay", "-q", self.alarm_sound])
 
     def step(self, action):
         self.steps_in_episode += 1
@@ -130,7 +132,7 @@ class HazardAudioEnv(gym.Env):
         if min_dist < 0.25 and self.steps_in_episode > 10:
             if not (is_final_goal and dist_to_wp < 1.3):
                 self.stop_bg_music()
-                return obs, -500.0, True, {}
+                return obs, -500.0, True, False, {}
 
         # 🚀 WAYPOINT PROGRESS
         success_radius = 1.3 if is_final_goal else 0.8
@@ -141,7 +143,7 @@ class HazardAudioEnv(gym.Env):
             
             if self.current_wp_idx >= len(self.waypoints):
                 self.trigger_alarm()
-                return obs, 10000.0, True, {}
+                return obs, 10000.0, True, False, {}
 
         # 🧭 REWARD SHAPING
         reward -= dist_to_wp * 0.5      # Penalty for distance
@@ -152,7 +154,7 @@ class HazardAudioEnv(gym.Env):
         if self.steps_in_episode > 1000:
             done = True
 
-        return obs, float(reward), done, {}
+        return obs, float(reward), done, False, {}
 
     def play_bg_music(self):
         self.stop_bg_music()
@@ -165,17 +167,21 @@ class HazardAudioEnv(gym.Env):
             except: pass
             self.bg_process = None
 
-    def reset(self):
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
         # Stop and Reset Gazebo
         self.pub_vel.publish(Twist())
-        try: self.reset_proxy()
+        try:
+            self.reset_proxy()
+            rospy.sleep(0.5)
+            self.unpause_proxy()
         except: pass
-        
+
         rospy.sleep(1.2) # Essential delay for physics to catch up
         self.current_wp_idx = 0
         self.steps_in_episode = 0
         self.play_bg_music()
-        return self.get_obs()
+        return self.get_obs(), {}
 
 # --- MAIN TRAINING LOOP ---
 if __name__ == "__main__":
