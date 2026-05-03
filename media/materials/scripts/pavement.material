@@ -1,0 +1,14 @@
+material Pavement/Tile
+{
+    technique
+    {
+        pass
+        {
+            texture_unit
+            {
+                texture pavement_tile.png
+                scale 0.02 0.02
+            }
+        }
+    }
+}

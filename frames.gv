@@ -1,0 +1,31 @@
+digraph G {
+"Group6Bot_0/base_link" -> "Group6Bot_0/bumper_link"[label="Broadcaster: /rsp_0\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 19.656 sec old)\nBuffer length: 0.000 sec\n"];
+"Group6Bot_0/base_footprint" -> "Group6Bot_0/base_link"[label="Broadcaster: /rsp_0\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 19.656 sec old)\nBuffer length: 0.000 sec\n"];
+"Group6Bot_0/base_link" -> "Group6Bot_0/caster_link"[label="Broadcaster: /rsp_0\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 19.656 sec old)\nBuffer length: 0.000 sec\n"];
+"Group6Bot_0/odom" -> "Group6Bot_0/base_footprint"[label="Broadcaster: /gazebo\nAverage rate: 30.312 Hz\nMost recent transform: 19.643 ( 0.013 sec old)\nBuffer length: 3.266 sec\n"];
+"Group6Bot_0/base_link" -> "Group6Bot_0/camera_link"[label="Broadcaster: /rsp_0\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 19.656 sec old)\nBuffer length: 0.000 sec\n"];
+"Group6Bot_0/base_link" -> "Group6Bot_0/base_scan"[label="Broadcaster: /rsp_0\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 19.656 sec old)\nBuffer length: 0.000 sec\n"];
+"Group6Bot_1/base_link" -> "Group6Bot_1/camera_link"[label="Broadcaster: /rsp_1\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 19.656 sec old)\nBuffer length: 0.000 sec\n"];
+"Group6Bot_1/odom" -> "Group6Bot_1/base_link"[label="Broadcaster: /gazebo\nAverage rate: 20.314 Hz\nMost recent transform: 19.637 ( 0.019 sec old)\nBuffer length: 3.249 sec\n"];
+"Group6Bot_1/camera_link" -> "Group6Bot_1/camera_link_optical"[label="Broadcaster: /rsp_1\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 19.656 sec old)\nBuffer length: 0.000 sec\n"];
+"Group6Bot_1/base_link" -> "Group6Bot_1/caster_link"[label="Broadcaster: /rsp_1\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 19.656 sec old)\nBuffer length: 0.000 sec\n"];
+"Group6Bot_1/base_link" -> "Group6Bot_1/laser_link"[label="Broadcaster: /rsp_1\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 19.656 sec old)\nBuffer length: 0.000 sec\n"];
+"Group6Bot_1/base_link" -> "Group6Bot_1/right_wheel"[label="Broadcaster: /gazebo\nAverage rate: 20.308 Hz\nMost recent transform: 19.638 ( 0.018 sec old)\nBuffer length: 3.250 sec\n"];
+"Group6Bot_1/base_link" -> "Group6Bot_1/left_wheel"[label="Broadcaster: /gazebo\nAverage rate: 20.308 Hz\nMost recent transform: 19.638 ( 0.018 sec old)\nBuffer length: 3.250 sec\n"];
+"Group6Bot_0/base_link" -> "Group6Bot_0/left_wheel"[label="Broadcaster: /rsp_0\nAverage rate: 10.312 Hz\nMost recent transform: 19.600 ( 0.056 sec old)\nBuffer length: 3.200 sec\n"];
+"Group6Bot_0/base_link" -> "Group6Bot_0/right_wheel"[label="Broadcaster: /rsp_0\nAverage rate: 10.312 Hz\nMost recent transform: 19.600 ( 0.056 sec old)\nBuffer length: 3.200 sec\n"];
+"Environment" -> "hazard_rolling_1"[label="Broadcaster: /gazebo\nAverage rate: 19.919 Hz\nMost recent transform: 19.634 ( 0.022 sec old)\nBuffer length: 3.213 sec\n"];
+"Environment" -> "hazard_rolling_2"[label="Broadcaster: /gazebo\nAverage rate: 19.925 Hz\nMost recent transform: 19.634 ( 0.022 sec old)\nBuffer length: 3.212 sec\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 19.656"[ shape=plaintext ] ;
+ }->"Group6Bot_0/odom";
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 19.656"[ shape=plaintext ] ;
+ }->"Group6Bot_1/odom";
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 19.656"[ shape=plaintext ] ;
+ }->"Environment";
+}

@@ -1,0 +1,3 @@
+- Bug 2 for Bot 1
+- RL for Bot 0
+- Bot 1 will report obstacle information to Bot 0.

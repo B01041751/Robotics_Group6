@@ -1,0 +1,407 @@
+<?xml version="1.0" ?>
+<!-- The robot's name is com760Bot. This robot defines the following:
+     A chassis the base_link and ensuring it is attached to the base_footprint. The front bumper bar is used for the contact sensor.
+     The two drive wheels are continuous joints and the caster is a fixed joint. The lidar link is the base_scan, with a ray sensor in the Gazebo.
+     The Gazebo diff-drive plugin mapping the cmd_vel of the wheel joints and the odom as well as the TF. The link names are "Group6Bot_0/" are the 
+     hard coded prefix. -->
+<robot name="com760Bot">
+
+  <!-- This is where the materials (URDF/RViz) are being defined. These <material> tags are URDF materials. They are used by the RViz and URDF 
+       renderers and Gazebo uses its own materials later defined under the <material>Gazebo/Black</material> etc. -->
+  <material name="purple">
+    <color rgba="0.5 0 0.5 1"/>
+  </material>
+  <material name="black">
+    <color rgba="0.0 0.0 0.0 1.0"/>
+  </material>
+  <material name="red">
+    <color rgba="1.0 0.0 0.0 1.0"/>
+  </material>
+
+  <!-- This is where the base frames and the main body is being defined.  -->
+  <!-- This is where the base_footprint is being defined. -->
+  <link name="Group6Bot_0/base_footprint"/>
+
+  <!-- This is where the base_joint is being defined. It is a fixed joint used for attaching the base_link to the base_footprint. The origin is xyz="0 0 0.16,
+       this means that the base_link origin sits at a 0.16m above the base_footprint. This will affect all of the children such as the wheels, sensors and bumper,
+       this is because they attach to the base_link. -->
+  <joint name="base_joint" type="fixed">
+    <parent link="Group6Bot_0/base_footprint"/>
+    <child link="Group6Bot_0/base_link"/>
+    <origin rpy="0 0 0" xyz="0 0 0.16"/>
+  </joint>
+
+  <!-- This is where the base_link is being defined, it is main chassis body and has visual geometry - what you see, collision geometry - physics it collides with and
+  inertial properties - the mass and the inertia used for dynamics stability. -->
+  <link name="Group6Bot_0/base_link">
+    <visual>
+      <geometry>
+        <!-- The chassis box is defined as 0.4m (x) long, 0.22m (y) wide, 0.1m (z) tall. -->
+        <box size="0.4 0.22 0.1"/>
+      </geometry>
+      <material name="purple"/>
+    </visual>
+
+    <collision name="base_collision">
+      <geometry>
+        <!-- The collision matches visual, it is defined. -->
+        <box size="0.4 0.22 0.1"/>
+      </geometry>
+    </collision>
+
+    <inertial>
+      <!-- The mass of chassis being defined. -->
+      <mass value="5.0"/>
+      <!-- This is where the inertia matrix terms are defined. -->
+      <inertia ixx="0.024333" ixy="0" ixz="0" iyy="0.086666" iyz="0" izz="0.070666"/>
+    </inertial>
+  </link>
+
+  <!-- This is where the bumper contact sensor is being defined. -->
+  <!-- This is where the bumper_link is being defined, it is a thin bar at the front, the collision element is defined as bumper_collision. The Gazebo contact sensor will later 
+       try to watch a collision, the collision name has to match what the Gazebo expects. -->
+  <link name="Group6Bot_0/bumper_link">
+    <visual>
+      <geometry>
+        <!-- Defining the thin bumper strip. -->
+        <box size="0.02 0.22 0.05"/>
+      </geometry>
+      <material name="red"/>
+    </visual>
+
+    <collision name="bumper_collision">
+      <geometry>
+        <box size="0.02 0.22 0.05"/>
+      </geometry>
+    </collision>
+
+    <inertial>
+      <mass value="0.1"/>
+      <!-- Due to the bumper strip being thin a small inertia values are defined appropriatelu for the small bar. -->
+      <inertia ixx="0.000424" ixy="0" ixz="0" iyy="0.000406" iyz="0" izz="0.000054"/>
+    </inertial>
+  </link>
+
+  <!-- This is defining the bumper_joint, it is a fixed joint attaching the bumper to the base_link at xyz= 0.21 0 0, moving the bumper forward on the +x axis. 
+       The thickness of the bumper is 0.02, by placing it at 0.21, it protudes slightly beyond the chassis. -->
+  <joint name="Group6Bot_0/bumper_joint" type="fixed">
+    <parent link="Group6Bot_0/base_link"/>
+    <child link="Group6Bot_0/bumper_link"/>
+    <origin rpy="0 0 0" xyz="0.21 0 0"/>
+  </joint>
+
+  <!-- This is where the driven wheels are being defined. -->
+  <!-- This is where the left_wheel is being defined. It is a cylinder wheel. -->
+  <link name="Group6Bot_0/left_wheel">
+    <visual>
+      <geometry>
+        <!-- Defining the radius=0.1m => diameter=0.2m; thickness=0.04m. -->
+        <cylinder length="0.04" radius="0.1"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+
+    <collision>
+      <geometry>
+        <cylinder length="0.04" radius="0.1"/>
+      </geometry>
+    </collision>
+
+    <inertial>
+      <mass value="0.5"/>
+      <!-- Inertia for a small solid wheel -->
+      <inertia ixx="0.001316" ixy="0" ixz="0" iyy="0.001316" iyz="0" izz="0.0025"/>
+    </inertial>
+  </link>
+
+  <!-- Defining the wheel_left_joint. It is a continuous joint for wheel spinning. The xyz places for the wheel are relative to the base_link.
+       x=-0.1, this puts the wheel a bit back from chassis centre, y=+0.13, this will put it on the left, z=-0.05, this will put it below the base_link's origin.
+       The rpy = (-1.5708, 0, 0): this rotates the wheel link frame, this is so that spinning about joint axis will make the wheel roll. The axis xyz="0 0 1": 
+       this causes a spin around the local Z axis (after the rpy rotation). -->
+  <joint name="Group6Bot_0/wheel_left_joint" type="continuous">
+    <parent link="Group6Bot_0/base_link"/>
+    <child link="Group6Bot_0/left_wheel"/>
+    <origin rpy="-1.5708 0 0" xyz="-0.1 0.13 -0.05"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <!-- The right wheel is symmetric about Y (mirror of left wheel) is being defined. -->
+  <link name="Group6Bot_0/right_wheel">
+    <visual>
+      <geometry>
+        <cylinder length="0.04" radius="0.1"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.04" radius="0.1"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.001316" ixy="0" ixz="0" iyy="0.001316" iyz="0" izz="0.0025"/>
+    </inertial>
+  </link>
+
+  <joint name="Group6Bot_0/wheel_right_joint" type="continuous">
+    <parent link="Group6Bot_0/base_link"/>
+    <child link="Group6Bot_0/right_wheel"/>
+    <!-- y=-0.13 puts it on the right side. -->
+    <origin rpy="-1.5708 0 0" xyz="-0.1 -0.13 -0.05"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <!-- The caster (support) is being defined. -->
+  <!-- The caster_link being defined, it is a passive support element and is a sphere, within Gazebo it is set to 0, it is defined later,
+       it is so it slides but it doesn't resist any turning. -->
+  <link name="Group6Bot_0/caster_link">
+    <visual>
+      <geometry>
+        <sphere radius="0.05"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry>
+        <sphere radius="0.05"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+  </link>
+
+  <!-- The caster_joint is being defined, it is a fixed mount, xyz="0.15 0 -0.11" this is placing it forward and low, together with the base_link,
+       of z=0.16, it tries to put the caster near the ground. -->
+  <joint name="Group6Bot_0/caster_joint" type="fixed">
+    <parent link="Group6Bot_0/base_link"/>
+    <child link="Group6Bot_0/caster_link"/>
+    <origin rpy="0 0 0" xyz="0.15 0 -0.11"/>
+  </joint>
+
+  <!-- This is where the Lidar physical link is being defined.  -->
+  <!-- This is where the base_scan link is being defined, it is a physical and visual placeholder for the lidar sensor, the real sensing will come from 
+       the Gazebo <sensor type="ray"> block later. -->
+  <link name="Group6Bot_0/base_scan">
+    <visual>
+      <geometry>
+        <cylinder length="0.05" radius="0.05"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.05" radius="0.05"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.000083" ixy="0" ixz="0" iyy="0.000083" iyz="0" izz="0.000125"/>
+    </inertial>
+  </link>
+
+  <!-- The scan_joint is being defined, it is a fixed mount for the lidar housing. -->
+  <joint name="scan_joint" type="fixed">
+    <parent link="Group6Bot_0/base_link"/>
+    <child link="Group6Bot_0/base_scan"/>
+    <origin rpy="0 0 0" xyz="0.1 0 0.075"/>
+  </joint>
+
+  <!-- This is where the camera physical link is being defined. -->
+
+  <link name="Group6Bot_0/camera_link">
+    <visual>
+      <geometry>
+        <box size="0.05 0.05 0.05"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.05 0.05 0.05"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <!-- This is where the cube like inertia is being defined. -->
+      <inertia ixx="0.000041" ixy="0" ixz="0" iyy="0.000041" iyz="0" izz="0.000041"/>
+    </inertial>
+  </link>
+
+  <joint name="camera_joint" type="fixed">
+    <parent link="Group6Bot_0/base_link"/>
+    <child link="Group6Bot_0/camera_link"/>
+    <origin rpy="0 0 0" xyz="0.2 0 0.075"/>
+  </joint>
+
+  <!-- This is where the Gazebo extensions: sensors + plugins + materials are all being defined.  -->
+  <!-- This is where the Gazebo Camera Sensor is being defined. -->
+  <gazebo reference="Group6Bot_0/camera_link">
+    <!-- Gazebo-only visual material is being defined. -->
+    <material>Gazebo/Black</material>
+
+    <!-- This is where the Gazebo camera sensor is defined and the update rate is set at 30 Hz, the horizontal FOV is being set to ~ 80 degrees (in radians)
+         the RGB image is being set to 800x800, and the near/far clip for rendering is defined along with the gaussian noise that is used for realism. -->
+    <sensor name="robot_camera" type="camera">
+      <update_rate>30.0</update_rate>
+
+      <camera name="head">
+        <horizontal_fov>1.3962634</horizontal_fov>
+
+        <image>
+          <width>800</width>
+          <height>800</height>
+          <format>R8G8B8</format>
+        </image>
+
+        <clip>
+          <near>0.02</near>
+          <far>300</far>
+        </clip>
+
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>
+        </noise>
+      </camera>
+
+      <!-- This is where the Gazebo ROS camera plugin is defined where it publishes the ROS image and the camera_info. The frameName tells the consumers which TF frame
+           the camera is in using the namespace base of Group6Bot_0/camera. The updaterate=0.0, the plugin will decide the as fast as possible while the sensor is still at 
+           30Hz. -->
+      <plugin filename="libgazebo_ros_camera.so" name="camera_controller">
+        <alwaysOn>true</alwaysOn>
+        <updateRate>0.0</updateRate>
+        <cameraName>Group6Bot_0/camera</cameraName>
+        <imageTopicName>image_raw</imageTopicName>
+        <cameraInfoTopicName>camera_info</cameraInfoTopicName>
+        <frameName>Group6Bot_0/camera_link</frameName>
+
+        <!-- The stereo/distortion parameters are being set. -->
+        <hackBaseline>0.07</hackBaseline>
+        <distortionK1>0.0</distortionK1>
+        <distortionK2>0.0</distortionK2>
+        <distortionK3>0.0</distortionK3>
+        <distortionT1>0.0</distortionT1>
+        <distortionT2>0.0</distortionT2>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- This is where the Gazebo Bumper (Contact) is being defined. -->
+  <gazebo reference="Group6Bot_0/bumper_link">
+    <material>Gazebo/Red</material>
+
+    <!-- The contact sensor being defined, the selfCollide is set to true which allows for the self collision checks to take place within the model, it can be noisy if the 
+         geometry overlap. By having the alwaysOn true, means it is always active, the updateRate at 15Hz, as the contact reporting rate. The contact/collision, this specifies 
+         which collision element to monitor. -->
+    <sensor name="main_bumper" type="contact">
+      <selfCollide>true</selfCollide>
+      <alwaysOn>true</alwaysOn>
+      <updateRate>15.0</updateRate>
+
+      <contact>
+        <collision>base_link_fixed_joint_lump__bumper_collision_collision_1</collision>
+      </contact>
+
+      <!-- Defining the plugin that publishes the bumper events on "bumper_states". -->
+      <plugin filename="libgazebo_ros_bumper.so" name="gazebo_ros_bumper_controller">
+        <robotNamespace>Group6Bot_0</robotNamespace>
+        <bumperTopicName>bumper_states</bumperTopicName>
+        <frameName>Group6Bot_0/bumper_link</frameName>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- This is where the Gazebo Lidar (Ray) is being defined. -->
+  <gazebo reference="Group6Bot_0/base_scan">
+    <material>Gazebo/Black</material>
+
+    <!-- The Ray sensor (2D lidar), it is set for the visualise to be true, meaning it draws rays within the Gazebo, the update_rate at 10Hz. The scan is set to 360 samples 
+         from the -pi to +pi for the full 360°, and the range is set to a minimum of 0.12 and the maximum is set to 12m. -->
+    <sensor name="laser" type="ray">
+      <visualize>true</visualize>
+      <update_rate>10</update_rate>
+
+      <ray>
+        <scan>
+          <horizontal>
+            <samples>360</samples>
+            <min_angle>-3.14</min_angle>
+            <max_angle>3.14</max_angle>
+          </horizontal>
+        </scan>
+
+        <range>
+          <min>0.12</min>
+          <max>12.0</max>
+        </range>
+      </ray>
+
+      <!-- This is the plugin bridges to ROS for the LaserScan. -->
+      <plugin filename="libgazebo_ros_laser.so" name="gazebo_ros_laser">
+        <robotNamespace>Group6Bot_0</robotNamespace>
+        <topicName>scan</topicName>
+        <frameName>Group6Bot_0/base_scan</frameName>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- This is where the Gazebo Diff Drive Plugin is defined. -->
+
+  <gazebo>
+    <!--The Differential drive plugin, it is uses the wheel joints for driving the robot. It subscribes to <robotNamespace>/<commandTopic> and publishes the odometry and TF frames. 
+        The wheelSepartion=0.26 which matches the y=+0.13 and y=-0.13 => 0.26m. The wheelDiameter=0.2 which matches the radius of 0.1m and the odometrySource=world which means the 
+        odometry is derived from the Gazebo world pose. -->
+    <plugin filename="libgazebo_ros_diff_drive.so" name="differential_drive_controller">
+      <robotNamespace>Group6Bot_0</robotNamespace>
+      <leftJoint>Group6Bot_0/wheel_left_joint</leftJoint>
+      <rightJoint>Group6Bot_0/wheel_right_joint</rightJoint>
+
+      <wheelSeparation>0.26</wheelSeparation>
+      <wheelDiameter>0.2</wheelDiameter>
+
+      <commandTopic>cmd_vel</commandTopic>
+      <odometryTopic>odom</odometryTopic>
+
+      <odometryFrame>Group6Bot_0/odom</odometryFrame>
+      <robotBaseFrame>Group6Bot_0/base_footprint</robotBaseFrame>
+
+      <publishTf>true</publishTf>
+      <publishOdomTF>true</publishOdomTF>
+      <publishWheelTF>false</publishWheelTF>
+
+      <updateRate>30.0</updateRate>
+      <odometrySource>world</odometrySource>
+    </plugin>
+  </gazebo>
+
+  <!-- This is where the Gazebo materials + friction is being defined. -->
+  <!-- This is where the chassis material in Gazebo is defined. -->
+  <gazebo reference="Group6Bot_0/base_link">
+    <material>Gazebo/Purple</material>
+  </gazebo>
+
+  <!-- This is where the wheel frictifined as high grip, which reduces any sideways slip is being defined. -->
+  <gazebo reference="Group6Bot_0/left_wheel">
+    <material>Gazebo/Black</material>
+    <mu1>2.0</mu1>
+    <mu2>2.0</mu2>
+  </gazebo>
+
+  <gazebo reference="Group6Bot_0/right_wheel">
+    <material>Gazebo/Black</material>
+    <mu1>2.0</mu1>
+    <mu2>2.0</mu2>
+  </gazebo>
+
+  <!-- Caster friction: very low so it doesn’t fight turns -->
+  <gazebo reference="Group6Bot_0/caster_link">
+    <material>Gazebo/Black</material>
+    <mu1>0.0</mu1>
+    <mu2>0.0</mu2>
+  </gazebo>
+
+</robot>

@@ -1,0 +1,285 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+<world name="hazard_world">
+
+  <physics type="ode">
+    <real_time_update_rate>1000.0</real_time_update_rate>
+    <max_step_size>0.001</max_step_size>
+    <real_time_factor>1.0</real_time_factor>
+    <ode><solver><type>quick</type><iters>70</iters><sor>1.3</sor></solver></ode>
+  </physics>
+
+  <scene>
+    <ambient>0.4 0.2 0.1 1</ambient>
+    <background>0.7 0.4 0.3 1</background>
+    <shadows>false</shadows>
+    <sky>
+      <time>18.5</time><sunrise>6.0</sunrise><sunset>19.0</sunset>
+      <clouds><speed>0.6</speed><humidity>0.5</humidity></clouds>
+    </sky>
+  </scene>
+
+  <light name="sun" type="directional">
+    <pose>0 0 10 0.8 0 0</pose>
+    <diffuse>0.9 0.5 0.2 1</diffuse>
+    <specular>0.2 0.2 0.2 1</specular>
+    <direction>0 0 -1</direction>
+    <cast_shadows>false</cast_shadows>
+  </light>
+
+  <light name="tunnel_lamp" type="point">
+    <pose>0 7.8 2.95 0 0 0</pose>
+    <diffuse>1.0 0.95 0.6 1</diffuse>
+    <specular>0.4 0.4 0.4 1</specular>
+    <attenuation><range>8.0</range><constant>0.3</constant><linear>0.1</linear><quadratic>0.05</quadratic></attenuation>
+    <cast_shadows>false</cast_shadows>
+    <visualize>false</visualize>
+  </light>
+
+  <!-- Outer pavement ground — full 100x100, tiled concrete look -->
+  <model name="outer_ground">
+    <static>true</static>
+    <link name="link">
+      <collision name="collision">
+        <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
+        <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
+      </collision>
+      <visual name="visual">
+        <cast_shadows>false</cast_shadows>
+        <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
+        <material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Pavement/Tile</name></script></material>
+      </visual>
+    </link>
+  </model>
+
+  <!-- Inner textured ground — 20x20 inside boundary, sits just above outer ground -->
+  <model name="cracked_ground">
+    <static>true</static>
+    <link name="link">
+      <visual name="visual">
+        <cast_shadows>false</cast_shadows>
+        <pose>0 0 0.001 0 0 0</pose>
+        <geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+        <material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/GroundTexture</name></script></material>
+      </visual>
+    </link>
+  </model>
+
+  <model name="grid_border">
+    <static>true</static>
+    <link name="link">
+      <collision name="n_c"><pose>0.0000 10.0 0.5 0 0 0</pose><geometry><box><size>20.5000 0.2 1.0</size></box></geometry></collision>
+      <visual name="n_v"><pose>0.0000 10.0 0.5 0 0 0</pose><cast_shadows>false</cast_shadows><geometry><box><size>20.5000 0.2 1.0</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+      <collision name="s_c"><pose>0.0000 -10.0 0.5 0 0 0</pose><geometry><box><size>20.5000 0.2 1.0</size></box></geometry></collision>
+      <visual name="s_v"><pose>0.0000 -10.0 0.5 0 0 0</pose><cast_shadows>false</cast_shadows><geometry><box><size>20.5000 0.2 1.0</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+      <collision name="e_c"><pose>10.0000 0.0 0.5 0 0 0</pose><geometry><box><size>0.2000 20.5 1.0</size></box></geometry></collision>
+      <visual name="e_v"><pose>10.0000 0.0 0.5 0 0 0</pose><cast_shadows>false</cast_shadows><geometry><box><size>0.2000 20.5 1.0</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+      <collision name="w_c"><pose>-10.0000 0.0 0.5 0 0 0</pose><geometry><box><size>0.2000 20.5 1.0</size></box></geometry></collision>
+      <visual name="w_v"><pose>-10.0000 0.0 0.5 0 0 0</pose><cast_shadows>false</cast_shadows><geometry><box><size>0.2000 20.5 1.0</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+    </link>
+  </model>
+
+  <include>
+    <name>corner_tree</name>
+    <uri>model://oak_tree</uri>
+    <pose>8.0 8.0 -0.8 0 0 0</pose>
+    <static>true</static>
+  </include>
+
+  <model name="path_tunnel">
+    <static>true</static>
+    <pose>0.0 7.8 -0.2 0 0 0</pose>
+    <link name="link">
+      <collision name="wall_l"><pose>0 -2.5 1.6 0 0 0</pose><geometry><box><size>6.0 0.5 3.2</size></box></geometry></collision>
+      <visual name="v_l"><cast_shadows>false</cast_shadows><pose>0 -2.5 1.6 0 0 0</pose><geometry><box><size>6.0 0.5 3.2</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+      <collision name="wall_r"><pose>0 2.5 1.6 0 0 0</pose><geometry><box><size>6.0 0.5 3.2</size></box></geometry></collision>
+      <visual name="v_r"><cast_shadows>false</cast_shadows><pose>0 2.5 1.6 0 0 0</pose><geometry><box><size>6.0 0.5 3.2</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+      <collision name="roof"><pose>0 0 3.2 0 0 0</pose><geometry><box><size>6.0 5.2 0.2</size></box></geometry></collision>
+      <visual name="v_roof"><cast_shadows>false</cast_shadows><pose>0 0 3.2 0 0 0</pose><geometry><box><size>6.0 5.2 0.2</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+      <collision name="c_debris_1"><pose>-1.5 1.2 0.6 0.2 0.5 0.7</pose><geometry><box><size>1.2 0.6 0.8</size></box></geometry><surface><friction><ode><mu>100</mu><mu2>50</mu2></ode></friction></surface></collision>
+      <visual name="v_debris_1"><cast_shadows>false</cast_shadows><pose>-1.5 1.2 0.6 0.2 0.5 0.7</pose><geometry><box><size>1.2 0.6 0.8</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+      <collision name="c_debris_2"><pose>1.5 -1.2 0.5 -0.3 0 0.4</pose><geometry><box><size>1.0 1.0 0.6</size></box></geometry><surface><friction><ode><mu>100</mu><mu2>50</mu2></ode></friction></surface></collision>
+      <visual name="v_debris_2"><cast_shadows>false</cast_shadows><pose>1.5 -1.2 0.5 -0.3 0 0.4</pose><geometry><box><size>1.0 1.0 0.6</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+    </link>
+  </model>
+
+  
+  <model name="random_stone_1">
+    <static>true</static>
+    <pose>-4.0 3.0 0.4 0.0 0.0 0.8</pose>
+    <link name="link">
+      <collision name="c"><geometry><box><size>0.8 1.2 0.8</size></box></geometry><surface><friction><ode><mu>100</mu><mu2>50</mu2></ode></friction><contact><ode><kp>1e+06</kp><kd>1.0</kd></ode></contact></surface></collision>
+      <visual name="v"><cast_shadows>false</cast_shadows><geometry><box><size>0.8 1.2 0.8</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+    </link>
+  </model>
+  <model name="random_stone_2">
+    <static>true</static>
+    <pose>5.0 4.0 0.5 0.2 0.0 1.2</pose>
+    <link name="link">
+      <collision name="c"><geometry><box><size>1.0 1.0 1.0</size></box></geometry><surface><friction><ode><mu>100</mu><mu2>50</mu2></ode></friction><contact><ode><kp>1e+06</kp><kd>1.0</kd></ode></contact></surface></collision>
+      <visual name="v"><cast_shadows>false</cast_shadows><geometry><box><size>1.0 1.0 1.0</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+    </link>
+  </model>
+  <model name="random_stone_3">
+    <static>true</static>
+    <pose>-3.0 -7.0 0.3 0.0 0.0 -0.5</pose>
+    <link name="link">
+      <collision name="c"><geometry><box><size>1.5 0.7 0.6</size></box></geometry><surface><friction><ode><mu>100</mu><mu2>50</mu2></ode></friction><contact><ode><kp>1e+06</kp><kd>1.0</kd></ode></contact></surface></collision>
+      <visual name="v"><cast_shadows>false</cast_shadows><geometry><box><size>1.5 0.7 0.6</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+    </link>
+  </model>
+  <model name="random_stone_4">
+    <static>true</static>
+    <pose>2.0 9.0 0.4 0.0 0.0 0.3</pose>
+    <link name="link">
+      <collision name="c"><geometry><box><size>0.6 0.6 0.8</size></box></geometry><surface><friction><ode><mu>100</mu><mu2>50</mu2></ode></friction><contact><ode><kp>1e+06</kp><kd>1.0</kd></ode></contact></surface></collision>
+      <visual name="v"><cast_shadows>false</cast_shadows><geometry><box><size>0.6 0.6 0.8</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+    </link>
+  </model>
+  <model name="random_stone_5">
+    <static>true</static>
+    <pose>-2.0 -8.5 0.5 0.4 0.4 0.0</pose>
+    <link name="link">
+      <collision name="c"><geometry><box><size>0.9 0.9 1.0</size></box></geometry><surface><friction><ode><mu>100</mu><mu2>50</mu2></ode></friction><contact><ode><kp>1e+06</kp><kd>1.0</kd></ode></contact></surface></collision>
+      <visual name="v"><cast_shadows>false</cast_shadows><geometry><box><size>0.9 0.9 1.0</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+    </link>
+  </model>
+  <model name="random_stone_6">
+    <static>true</static>
+    <pose>8.5 -2.0 0.3 0.0 0.0 1.57</pose>
+    <link name="link">
+      <collision name="c"><geometry><box><size>2.0 0.4 0.6</size></box></geometry><surface><friction><ode><mu>100</mu><mu2>50</mu2></ode></friction><contact><ode><kp>1e+06</kp><kd>1.0</kd></ode></contact></surface></collision>
+      <visual name="v"><cast_shadows>false</cast_shadows><geometry><box><size>2.0 0.4 0.6</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+    </link>
+  </model>
+
+  
+  <model name="entrance_sign_bot0">
+    <static>true</static>
+    <pose>-9.8500 -3.7819 0 0 0 0</pose>
+    <link name="link">
+      <visual name="post_l">
+        <pose>0 -0.480 0.65 0 0 0</pose>
+        <cast_shadows>false</cast_shadows>
+        <geometry><cylinder><radius>0.03</radius><length>1.3</length></cylinder></geometry>
+        <material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material>
+      </visual>
+      <visual name="post_r">
+        <pose>0 0.480 0.65 0 0 0</pose>
+        <cast_shadows>false</cast_shadows>
+        <geometry><cylinder><radius>0.03</radius><length>1.3</length></cylinder></geometry>
+        <material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material>
+      </visual>
+      <visual name="board">
+        <pose>0 0 1.45 0 0 0</pose>
+        <cast_shadows>false</cast_shadows>
+        <geometry><box><size>0.08 0.9 0.35</size></box></geometry>
+        <material>
+          <ambient>0.00 0.45 1.00 1</ambient>
+          <diffuse>0.00 0.45 1.00 1</diffuse>
+          <emissive>0.00 0.11 0.25 1</emissive>
+        </material>
+      </visual>
+    </link>
+  </model>
+  
+  <model name="entrance_sign_bot1">
+    <static>true</static>
+    <pose>-5.3129 -9.8500 0 0 0 0</pose>
+    <link name="link">
+      <visual name="post_l">
+        <pose>-0.480 0 0.65 0 0 0</pose>
+        <cast_shadows>false</cast_shadows>
+        <geometry><cylinder><radius>0.03</radius><length>1.3</length></cylinder></geometry>
+        <material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material>
+      </visual>
+      <visual name="post_r">
+        <pose>0.480 0 0.65 0 0 0</pose>
+        <cast_shadows>false</cast_shadows>
+        <geometry><cylinder><radius>0.03</radius><length>1.3</length></cylinder></geometry>
+        <material><ambient>0.25 0.25 0.25 1</ambient><diffuse>0.25 0.25 0.25 1</diffuse></material>
+      </visual>
+      <visual name="board">
+        <pose>0 0 1.45 0 0 0</pose>
+        <cast_shadows>false</cast_shadows>
+        <geometry><box><size>0.9 0.08 0.35</size></box></geometry>
+        <material>
+          <ambient>1.00 0.55 0.00 1</ambient>
+          <diffuse>1.00 0.55 0.00 1</diffuse>
+          <emissive>0.25 0.14 0.00 1</emissive>
+        </material>
+      </visual>
+    </link>
+  </model>
+
+  <!-- Entry obstacle walls — one in front of each bot spawn -->
+  
+  <model name="entry_obstacle_bot0">
+    <static>true</static>
+    <pose>-5.0000 -3.7819 0.50 0 0 0</pose>
+    <link name="link">
+      <collision name="c"><geometry><box><size>0.20 3.00 1.00</size></box></geometry><surface><friction><ode><mu>100</mu><mu2>50</mu2></ode></friction></surface></collision>
+      <visual name="v"><cast_shadows>false</cast_shadows><geometry><box><size>0.20 3.00 1.00</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+    </link>
+  </model>
+  
+  <model name="entry_obstacle_bot1">
+    <static>true</static>
+    <pose>-5.3129 -5.0000 0.50 0 0 0</pose>
+    <link name="link">
+      <collision name="c"><geometry><box><size>3.00 0.20 1.00</size></box></geometry><surface><friction><ode><mu>100</mu><mu2>50</mu2></ode></friction></surface></collision>
+      <visual name="v"><cast_shadows>false</cast_shadows><geometry><box><size>3.00 0.20 1.00</size></box></geometry><material><script><uri>file:///home/hashie/catkin_ws/src/com760cw2_group6/media/materials/scripts</uri><name>Apocalypse/StoneTexture</name></script></material></visual>
+    </link>
+  </model>
+
+  <!-- Gas zone — randomised position, smaller area (radius 1.0m) -->
+  <model name="poison_gas_zone">
+    <static>true</static>
+    <pose>-2.50 1.50 0.4 0 0 0</pose>
+    <link name="gas_link">
+      <visual name="v">
+        <cast_shadows>false</cast_shadows>
+        <geometry><cylinder><radius>1.0</radius><length>0.8</length></cylinder></geometry>
+        <material><ambient>0 1 0 0.4</ambient><diffuse>0 1 0 0.4</diffuse><emissive>0 0.2 0 1</emissive></material>
+      </visual>
+      <collision name="gas_collision">
+        <geometry><cylinder><radius>1.0</radius><length>0.8</length></cylinder></geometry>
+        <surface><contact><collide_bitmask>0x00</collide_bitmask></contact></surface>
+      </collision>
+      <sensor name="gas_contact_sensor" type="contact">
+        <always_on>true</always_on>
+        <update_rate>20</update_rate>
+        <contact><collision>gas_link::gas_collision</collision></contact>
+        <plugin name="gas_plugin" filename="libgazebo_ros_bumper.so">
+          <bumperTopicName>gas_touch</bumperTopicName>
+          <frameName>world</frameName>
+        </plugin>
+      </sensor>
+    </link>
+  </model>
+
+  <!-- Mannequin — centred in gas zone, scaled down -->
+  <model name="gas_victim">
+    <static>true</static>
+    <pose>-2.50 1.50 0.05 1.57 0 0</pose>
+    <link name="link">
+      <collision name="c"><geometry><box><size>0.25 0.9 0.2</size></box></geometry></collision>
+      <visual name="v">
+        <cast_shadows>false</cast_shadows>
+        <geometry>
+          <mesh>
+            <uri>model://person_standing/meshes/standing.dae</uri>
+            <scale>0.5 0.5 0.5</scale>
+          </mesh>
+        </geometry>
+      </visual>
+    </link>
+  </model>
+
+  <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
+    <ros><namespace>/hazard_world</namespace></ros>
+    <update_rate>10.0</update_rate>
+  </plugin>
+
+</world>
+</sdf>

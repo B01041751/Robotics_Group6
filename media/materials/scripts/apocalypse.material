@@ -1,0 +1,61 @@
+material Apocalypse/GroundTexture
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        // Points to ground1.jpeg in your textures folder
+        texture ../textures/ground1.jpeg
+        // Adjust these numbers to change how many times the image repeats
+        scale 0.1 0.1
+      }
+    }
+  }
+}
+
+material Apocalypse/StoneTexture
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        // Points to stone1.jpeg in your textures folder
+        texture ../textures/stone1.jpeg
+        // A scale of 0.5 makes the stone look larger/chunkier
+        scale 0.5 0.5
+      }
+    }
+  }
+}
+material Apocalypse/FireballTexture
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture ../textures/fireball.jpeg
+        scale 1.0 1.0
+      }
+    }
+  }
+}
+material Victim/Clothed
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        // Points to the image you just saved
+        texture ../textures/victim.jpeg
+      }
+    }
+  }
+}

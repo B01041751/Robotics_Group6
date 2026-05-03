@@ -1,0 +1,7 @@
+digraph G {
+"base_footprint" -> "base_link"[label="Broadcaster: /group6bot_0/robot_state_publisher\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 \nBuffer length: 0.000 sec\n"];
+"base_link" -> "camera_link"[label="Broadcaster: /group6bot_0/robot_state_publisher\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 \nBuffer length: 0.000 sec\n"];
+"base_link" -> "caster_link"[label="Broadcaster: /group6bot_0/robot_state_publisher\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 \nBuffer length: 0.000 sec\n"];
+"base_link" -> "gas_sensor_link"[label="Broadcaster: /group6bot_0/robot_state_publisher\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 \nBuffer length: 0.000 sec\n"];
+"base_link" -> "base_scan"[label="Broadcaster: /group6bot_0/robot_state_publisher\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 \nBuffer length: 0.000 sec\n"];
+}

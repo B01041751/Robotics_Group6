@@ -1,0 +1,18 @@
+material Apocalypse/CrackedEarth
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.5 0.5 0.5 1.0
+      diffuse 0.8 0.8 0.8 1.0
+      specular 0.1 0.1 0.1 1.0 12.5
+
+      texture_unit
+      {
+        texture ground.jpg
+        scale 0.1 0.1
+      }
+    }
+  }
+}
