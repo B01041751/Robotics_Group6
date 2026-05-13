@@ -27,7 +27,7 @@ except ImportError:
     sys.exit(1)
 
 
-TOTAL_STEPS     = 1_500_000
+TOTAL_STEPS     = 600_000
 CHECKPOINT_FREQ =   5_000
 
 
@@ -215,11 +215,11 @@ def main():
             env=env,
             verbose=1,
             learning_rate=3e-4,
-            n_steps=4096,        # larger buffer → more diverse episodes per update
-            batch_size=256,      # larger minibatch → stabler gradient estimates
+            n_steps=2048,        # smaller buffer → more frequent updates → faster feedback
+            batch_size=64,
             n_epochs=10,
             gamma=0.98,
-            ent_coef=0.01,       # low entropy — dense gas signal means less random exploration needed
+            ent_coef=0.05,       # higher entropy → more exploration of large arena
             clip_range=0.2,
             tensorboard_log=tensorboard_dir if use_tb else None,
             device="cpu",

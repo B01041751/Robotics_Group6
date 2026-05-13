@@ -253,6 +253,79 @@ def stone_block(idx, x, y, z, rx, ry, rz, sx, sy, sz, uri):
   </model>"""
 
 
+FIRE_POSITIONS = [
+    (-2.0,  1.5),   # central-left  — early hazard on Bot 0's eastward path
+    ( 3.5, -3.0),   # central-right — later hazard between center and gas zone
+]
+FIRE_RADIUS = 0.40   # fireball collision sphere radius
+
+
+def fire_model(name, x, y, uri=""):
+    """Static fireball sphere using the Apocalypse/FireballTexture OGRE material.
+
+    This reuses the fireball.jpeg texture already in the project.  The original
+    hazard_1/hazard_2 models used this texture with a PlanarMove plugin; here we
+    drop the plugin so the ball sits in place.  A contact sensor on the sphere lets
+    Group6_fireball_detector.py report robot hits, and a warm point light adds glow.
+    """
+    mat_block = ""
+    if uri:
+        mat_block = f"""
+          <script>
+            <uri>{uri}</uri>
+            <name>Apocalypse/FireballTexture</name>
+          </script>"""
+    return f"""
+  <model name="{name}">
+    <static>true</static>
+    <pose>{x:.2f} {y:.2f} 0.55 0 0 0</pose>
+    <link name="link">
+      <!-- Sphere visual — fireball texture from the project's media folder -->
+      <visual name="fireball_vis">
+        <cast_shadows>false</cast_shadows>
+        <geometry><sphere><radius>0.40</radius></sphere></geometry>
+        <material>
+          <ambient>1.0 0.5 0.0 1</ambient>
+          <diffuse>1.0 0.4 0.0 1</diffuse>
+          <emissive>0.9 0.3 0.0 1</emissive>{mat_block}
+        </material>
+      </visual>
+
+      <!-- Collision sphere — solid obstacle for the robot -->
+      <collision name="fireball_col">
+        <geometry><sphere><radius>0.40</radius></sphere></geometry>
+        <surface>
+          <contact><collide_bitmask>0x01</collide_bitmask></contact>
+        </surface>
+      </collision>
+
+      <!-- Contact sensor so Group6_fireball_detector.py can report hits -->
+      <sensor name="{name}_contact" type="contact">
+        <always_on>true</always_on>
+        <update_rate>20</update_rate>
+        <contact><collision>link::fireball_col</collision></contact>
+        <plugin name="{name}_plugin" filename="libgazebo_ros_bumper.so">
+          <bumperTopicName>/{name}/contact</bumperTopicName>
+          <frameName>world</frameName>
+        </plugin>
+      </sensor>
+    </link>
+  </model>
+
+  <!-- Warm orange glow light centred on the fireball -->
+  <light name="{name}_glow" type="point">
+    <pose>{x:.2f} {y:.2f} 0.55 0 0 0</pose>
+    <diffuse>1.0 0.45 0.05 1</diffuse>
+    <specular>0.4 0.15 0.0 1</specular>
+    <attenuation>
+      <range>6.0</range><constant>0.25</constant>
+      <linear>0.12</linear><quadratic>0.04</quadratic>
+    </attenuation>
+    <cast_shadows>false</cast_shadows>
+    <visualize>false</visualize>
+  </light>"""
+
+
 def generate_world(output_path):
     pkg_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     uri = f"file://{pkg_path}/media/materials/scripts"
@@ -307,10 +380,21 @@ def generate_world(output_path):
         placed.append((_ox, _oy, _ow))
 
     # ------------------------------------------------------------------ #
-    # Randomise only the gas zone + mannequin
+    # Randomise only the gas zones + mannequins
     # ------------------------------------------------------------------ #
-    GAS_R = 1.0   # reduced from 2.5 → 1.0m radius
-    gx, gy = random_pos(placed, new_radius=GAS_R)
+    N_GAS = 3
+    GAS_R = 1.0   # exclusion radius per gas zone
+
+    # Fire obstacles — gas zones must clear the full danger radius (1.5m) + gas radius
+    FIRE_DANGER_RADIUS = 1.5
+    for fx, fy in FIRE_POSITIONS:
+        placed.append((fx, fy, FIRE_DANGER_RADIUS + GAS_R))
+
+    gas_zones = []
+    for _g in range(N_GAS):
+        _gx, _gy = random_pos(placed, new_radius=GAS_R)
+        gas_zones.append((_gx, _gy))
+        placed.append((_gx, _gy, GAS_R * 2))   # mutual exclusion between zones
 
     # ------------------------------------------------------------------ #
     # Entrance wall centres + robot spawn positions (outside the wall)
@@ -324,6 +408,10 @@ def generate_world(output_path):
         if side == 'W': return dict(wall_x=-10.0, wall_y=c,   spawn_x=-_off, spawn_y=c,    yaw= 0.0)
     ent0 = _ent(BOT0_ENTRANCE)
     ent1 = _ent(BOT1_ENTRANCE)
+
+    # Reserve spawn positions so random_pos() never places objects there
+    placed.append((ent0['spawn_x'], ent0['spawn_y'], SPAWN_CLEARANCE))
+    placed.append((ent1['spawn_x'], ent1['spawn_y'], SPAWN_CLEARANCE))
 
     # Write shell-sourceable env so run.bash can pass values to roslaunch
     env_path = os.path.join(os.path.dirname(output_path), 'spawn_config.env')
@@ -343,8 +431,14 @@ def generate_world(output_path):
             f"export BOT1_WALL_SIDE={BOT1_ENTRANCE}\n"
             f"export BOT1_WALL_X={ent1['wall_x']:.4f}\n"
             f"export BOT1_WALL_Y={ent1['wall_y']:.4f}\n"
-            f"export GAS_X={gx:.4f}\n"
-            f"export GAS_Y={gy:.4f}\n"
+            + "".join(
+                f"export GAS{i+1}_X={gx:.4f}\nexport GAS{i+1}_Y={gy:.4f}\n"
+                for i, (gx, gy) in enumerate(gas_zones)
+            )
+            + "".join(
+                f"export FIRE{i+1}_X={fx:.4f}\nexport FIRE{i+1}_Y={fy:.4f}\n"
+                for i, (fx, fy) in enumerate(FIRE_POSITIONS)
+            )
         )
 
     # ------------------------------------------------------------------ #
@@ -371,6 +465,59 @@ def generate_world(output_path):
     sign1_sdf = entrance_sign('entrance_sign_bot1', BOT1_ENTRANCE,
                               ent_coord[BOT1_ENTRANCE], (1.0, 0.55, 0.0))
 
+    # Static fire obstacles
+    fires_sdf = "".join(
+        fire_model(f"fire_{i+1}", fx, fy, uri=uri)
+        for i, (fx, fy) in enumerate(FIRE_POSITIONS)
+    )
+
+    # Gas zones SDF — one cylinder + mannequin per zone
+    _gas_blocks = []
+    for i, (gx, gy) in enumerate(gas_zones):
+        _gas_blocks.append(f"""
+  <model name="gas_zone_{i+1}">
+    <static>true</static>
+    <pose>{gx:.2f} {gy:.2f} 0.05 0 0 0</pose>
+    <link name="link">
+      <visual name="v">
+        <cast_shadows>false</cast_shadows>
+        <geometry><cylinder><radius>1.0</radius><length>0.1</length></cylinder></geometry>
+        <material><ambient>0 0.8 0 0.5</ambient><diffuse>0 0.9 0 0.5</diffuse><emissive>0 0.4 0 1</emissive></material>
+      </visual>
+      <collision name="c">
+        <geometry><cylinder><radius>1.0</radius><length>0.1</length></cylinder></geometry>
+        <surface><contact><collide_bitmask>0x01</collide_bitmask></contact><friction><ode><mu>0</mu><mu2>0</mu2></ode></friction></surface>
+      </collision>
+      <sensor name="contact_{i+1}" type="contact">
+        <always_on>true</always_on>
+        <update_rate>20</update_rate>
+        <contact><collision>link::c</collision></contact>
+        <plugin name="bumper_{i+1}" filename="libgazebo_ros_bumper.so">
+          <bumperTopicName>/gas_{i+1}/contact</bumperTopicName>
+          <frameName>world</frameName>
+        </plugin>
+      </sensor>
+    </link>
+  </model>
+
+  <model name="gas_victim_{i+1}">
+    <static>true</static>
+    <pose>{gx:.2f} {gy:.2f} 0.05 1.57 0 0</pose>
+    <link name="link">
+      <collision name="c"><geometry><box><size>0.25 0.9 0.2</size></box></geometry></collision>
+      <visual name="v">
+        <cast_shadows>false</cast_shadows>
+        <geometry>
+          <mesh>
+            <uri>model://person_standing/meshes/standing.dae</uri>
+            <scale>0.5 0.5 0.5</scale>
+          </mesh>
+        </geometry>
+      </visual>
+    </link>
+  </model>""")
+    gas_zones_sdf = "".join(_gas_blocks)
+
     world = f"""<?xml version="1.0" ?>
 <sdf version="1.6">
 <world name="hazard_world">
@@ -378,7 +525,7 @@ def generate_world(output_path):
   <physics type="ode">
     <real_time_update_rate>1000.0</real_time_update_rate>
     <max_step_size>0.001</max_step_size>
-    <real_time_factor>1.0</real_time_factor>
+    <real_time_factor>0</real_time_factor>
     <ode><solver><type>quick</type><iters>70</iters><sor>1.3</sor></solver></ode>
   </physics>
 
@@ -481,58 +628,26 @@ def generate_world(output_path):
   {sign0_sdf}
   {sign1_sdf}
 
+  <!-- Static fire obstacles -->
+  {fires_sdf}
+
   <!-- Entry obstacle walls — one in front of each bot spawn -->
   {obs0_sdf}
   {obs1_sdf}
 
-  <!-- Gas zone — randomised position, smaller area (radius 1.0m) -->
-  <model name="poison_gas_zone">
-    <static>true</static>
-    <pose>{gx:.2f} {gy:.2f} 0.4 0 0 0</pose>
-    <link name="gas_link">
-      <visual name="v">
-        <cast_shadows>false</cast_shadows>
-        <geometry><cylinder><radius>1.0</radius><length>0.8</length></cylinder></geometry>
-        <material><ambient>0 1 0 0.4</ambient><diffuse>0 1 0 0.4</diffuse><emissive>0 0.2 0 1</emissive></material>
-      </visual>
-      <collision name="gas_collision">
-        <geometry><cylinder><radius>1.0</radius><length>0.8</length></cylinder></geometry>
-        <surface><contact><collide_bitmask>0x00</collide_bitmask></contact></surface>
-      </collision>
-      <sensor name="gas_contact_sensor" type="contact">
-        <always_on>true</always_on>
-        <update_rate>20</update_rate>
-        <contact><collision>gas_link::gas_collision</collision></contact>
-        <plugin name="gas_plugin" filename="libgazebo_ros_bumper.so">
-          <bumperTopicName>gas_touch</bumperTopicName>
-          <frameName>world</frameName>
-        </plugin>
-      </sensor>
-    </link>
-  </model>
-
-  <!-- Mannequin — centred in gas zone, scaled down -->
-  <model name="gas_victim">
-    <static>true</static>
-    <pose>{gx:.2f} {gy:.2f} 0.05 1.57 0 0</pose>
-    <link name="link">
-      <collision name="c"><geometry><box><size>0.25 0.9 0.2</size></box></geometry></collision>
-      <visual name="v">
-        <cast_shadows>false</cast_shadows>
-        <geometry>
-          <mesh>
-            <uri>model://person_standing/meshes/standing.dae</uri>
-            <scale>0.5 0.5 0.5</scale>
-          </mesh>
-        </geometry>
-      </visual>
-    </link>
-  </model>
+  <!-- Gas zones — 3 independently randomised positions (radius 1.0m each) -->
+  {gas_zones_sdf}
 
   <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
     <ros><namespace>/hazard_world</namespace></ros>
     <update_rate>10.0</update_rate>
   </plugin>
+
+  <gui fullscreen="false">
+    <camera name="user_camera">
+      <pose>16.406 -17.062 19.287 0.0 0.7636 2.2402</pose>
+    </camera>
+  </gui>
 
 </world>
 </sdf>
@@ -542,7 +657,8 @@ def generate_world(output_path):
         f.write(world)
 
     print(f"[World Generator] World written to: {output_path}")
-    print(f"  Gas zone + mannequin: ({gx:.1f}, {gy:.1f})")
+    for i, (gx, gy) in enumerate(gas_zones):
+        print(f"  Gas zone {i+1}: ({gx:.1f}, {gy:.1f})")
     for side, coord in ent_coord.items():
         print(f"  Open entrance {side}: gap centre = {coord:.2f}")
     print(f"  Bot0 ({BOT0_ENTRANCE} entrance): spawn ({ent0['spawn_x']:.2f}, {ent0['spawn_y']:.2f})")

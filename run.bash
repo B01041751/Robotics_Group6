@@ -1,4 +1,5 @@
 #!/bin/bash
+export DISABLE_ROS1_EOL_WARNINGS=1
 cd /home/hashie/catkin_ws
 catkin_make
 python3 src/com760cw2_group6/scripts/generate_world.py

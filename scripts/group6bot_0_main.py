@@ -8,6 +8,7 @@ import cv2
 import subprocess
 import os
 import signal
+import rospkg
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image, LaserScan
 from geometry_msgs.msg import Twist
@@ -18,12 +19,13 @@ from std_srvs.srv import Empty
 class HazardWorldEnv(gym.Env):
     def __init__(self):
         super().__init__()
-        self.ns = "/group6bot_0" 
+        self.ns = "/Group6Bot_0"
         self.cmd_vel_pub = rospy.Publisher(f'{self.ns}/cmd_vel', Twist, queue_size=10)
-        
+
         # --- AUDIO PATHS ---
-        self.bg_music_path = "/home/ubuntu/com760cw2_group6/src/com760cw2_group6/sound/beto.wav"
-        self.alarm_path = "/home/ubuntu/com760cw2_group6/src/com760cw2_group6/sound/alarm.wav"
+        _pkg = rospkg.RosPack().get_path('com760cw2_group6')
+        self.bg_music_path = os.path.join(_pkg, 'sound', 'beto.wav')
+        self.alarm_path    = os.path.join(_pkg, 'sound', 'alarm.wav')
         self.music_process = None
         self.alarm_played = False 
 
@@ -46,7 +48,7 @@ class HazardWorldEnv(gym.Env):
         rospy.Subscriber(f'{self.ns}/odom', Odometry, self.odom_callback)
         rospy.Subscriber(f'{self.ns}/scan', LaserScan, self.scan_callback)
         rospy.Subscriber(f'{self.ns}/camera/image_raw', Image, self.image_callback)
-        rospy.Subscriber(f'{self.ns}/gas_touch', ContactsState, self.gas_callback)
+        rospy.Subscriber('/gas_touch', ContactsState, self.gas_callback)
 
         self.bridge = CvBridge()
         self.pose = None

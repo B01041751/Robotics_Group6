@@ -111,7 +111,7 @@ Visualization Manager:
           Value: true
         Link Tree Style: Links in Alphabetic Order
       Name: RobotModel
-      Robot Description: Group6Bot_0/robot_description
+      Robot Description: Group6Bot_1/robot_description
       TF Prefix: ""
       Update Interval: 0
       Value: true
