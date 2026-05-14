@@ -117,7 +117,16 @@ class HazardWorldEnv(gym.Env):
         self.in_gas           = False
         self.step_count       = 0
         self.stuck_steps      = 0
-        self.MAX_STEPS        = 2000
+        self.MAX_STEPS        = 3000
+
+        self._reward_breakdown = {
+            'gas_find': 0.0, 'bearing': 0.0, 'camera':  0.0,
+            'explore':  0.0, 'wall':    0.0, 'fire':    0.0,
+            'reverse':  0.0, 'home':    0.0, 'step':    0.0,
+            'terminal': 0.0,
+        }
+        self._fire_visible_count  = 0
+        self._wall_proximity_count = 0
 
         # Exploration grid — 1m×1m cells across the 20m×20m arena
         self.GRID_CELL   = 1.0
@@ -331,7 +340,7 @@ class HazardWorldEnv(gym.Env):
         move_cmd.angular.z = ang_v
         self.cmd_vel_pub.publish(move_cmd)
 
-        rospy.sleep(0.05)
+        rospy.sleep(0.1)
         self.step_count += 1
 
         # Every 100 steps: log sensor data age so we can verify observations are fresh
@@ -353,6 +362,7 @@ class HazardWorldEnv(gym.Env):
                 self.visited_cells.add(cell)
                 if not self.green_visible:  # don't reward exploring when gas is in sight
                     reward += 0.2
+                    self._reward_breakdown['explore'] += 0.2
 
         # --- Contact-sensor gas finds (async callbacks set flags; reward here) ---
         for i in range(len(self.gas_positions)):
@@ -360,6 +370,7 @@ class HazardWorldEnv(gym.Env):
                 self.gas_visited[i] = True
                 self.play_alarm()
                 reward += 10.0
+                self._reward_breakdown['gas_find'] += 10.0
                 rospy.loginfo(f"[Bot0] Gas {i+1} found by contact ({sum(self.gas_visited)}/{len(self.gas_positions)})")
             self.gas_contact_flags[i] = False
 
@@ -371,19 +382,31 @@ class HazardWorldEnv(gym.Env):
                     self.gas_visited[i] = True
                     self.play_alarm()
                     reward += 10.0
+                    self._reward_breakdown['gas_find'] += 10.0
                     rospy.loginfo(f"[Bot0] Gas {i+1} found ({sum(self.gas_visited)}/{len(self.gas_positions)})")
 
         if all(self.gas_visited) and not self.all_gas_found:
             self.all_gas_found = True
             rospy.loginfo("[Bot0] All gas found — returning home")
 
-        # Search-phase dense reward: bearing alignment (always-on) + camera alignment (when visible)
+        # Search-phase dense reward: bearing alignment (gated on clear forward space) + camera alignment
         if not self.all_gas_found and self.pose:
             gas_bearing_rad = obs[17] * math.pi
-            reward += 0.2 * math.cos(gas_bearing_rad) * max(0.0, lin_v)
-        if not self.all_gas_found and self.green_visible:
-            green_size = min(self.green_area / 5000.0, 1.0)
-            reward += 0.3 * green_size * (1.0 - abs(self.green_cx))
+            # sectors 3 & 4 face forward (scan starts at -π rear, index 180 = 0 rad = ahead)
+            if min(self.laser_sectors[3], self.laser_sectors[4]) > 0.6:
+                _b = 0.2 * math.cos(gas_bearing_rad) * max(0.0, lin_v)
+                reward += _b
+                self._reward_breakdown['bearing'] += _b
+        # Camera-alignment reward: only fires when actively approaching an unvisited gas zone.
+        # Coefficient reduced from 0.3 → 0.1 to prevent it dominating the reward signal.
+        # Distance gate prevents reward-hacking by parking next to a found gas.
+        if not self.all_gas_found and self.green_visible and self.pose:
+            nearest_unvisited_dist = obs[18] * 20.0  # gas_dist_norm × normaliser
+            if nearest_unvisited_dist < 10.0:
+                green_size = min(self.green_area / 5000.0, 1.0)
+                cam_r = 0.1 * green_size * (1.0 - abs(self.green_cx))
+                reward += cam_r
+                self._reward_breakdown['camera'] += cam_r
 
         # --- Time limit ---
         if self.step_count >= self.MAX_STEPS:
@@ -396,22 +419,32 @@ class HazardWorldEnv(gym.Env):
             for fx, fy in self.fire_positions
         )):
             reward -= 10.0
+            self._reward_breakdown['terminal'] -= 10.0
             done = True
             rospy.logwarn("[Bot0] Too close to fireball — episode ended")
 
         # --- Bot inverted / tipped over ---
         elif abs(self.roll) > 0.7 or abs(self.pitch) > 0.7:
             reward -= 10.0
+            self._reward_breakdown['terminal'] -= 10.0
             done = True
             rospy.logwarn(f"[Bot0] Inverted (roll={self.roll:.2f} pitch={self.pitch:.2f}) — episode reset")
 
-        # --- Wall proximity: escalating penalty ---
+        # --- Wall proximity: escalating penalty (softened) ---
         elif min_laser < 0.45:
-            self.stuck_steps += 1
             proximity_frac = (0.45 - min_laser) / 0.45
-            reward -= 0.5 * proximity_frac * proximity_frac  # quadratic ramp, softer than linear
+            _w = -0.2 * proximity_frac * proximity_frac
+            reward += _w
+            self._reward_breakdown['wall'] += _w
+            self._wall_proximity_count += 1
+            # Only count as stuck when also barely moving — wall-following is not stuck
+            if abs(lin_v) + abs(ang_v) < 0.15:
+                self.stuck_steps += 1
+            else:
+                self.stuck_steps = 0
             if self.stuck_steps >= 120:
                 reward -= 10.0
+                self._reward_breakdown['terminal'] -= 10.0
                 done = True
                 rospy.logwarn(f"[Bot0] Stuck too long")
         else:
@@ -421,26 +454,44 @@ class HazardWorldEnv(gym.Env):
         if not done and self.all_gas_found and self.pose and \
                 math.hypot(px - self.home[0], py - self.home[1]) < 2.0:
             reward += 40.0
+            self._reward_breakdown['terminal'] += 40.0
             done = True
             rospy.loginfo("[Bot0] Mission complete — all gas found and returned home")
 
         # --- Navigation shaping (only on non-terminal steps) ---
         if not done:
-            # Penalise reverse only in open space — allow reversing to escape walls
-            if lin_v < 0 and min_laser > 0.45:
+            # Reversing is free only when genuinely escaping a wall (min_laser < 0.30).
+            # Otherwise reverse motion is penalised, closing the oscillation loophole.
+            if lin_v < 0 and min_laser > 0.30:
                 reward -= 0.02
+                self._reward_breakdown['reverse'] -= 0.02
 
             # Return phase: reward alignment toward home × forward velocity
             if self.all_gas_found and self.pose:
                 home_heading_rad = obs[16] * math.pi
-                reward += 0.1 * math.cos(home_heading_rad) * max(0.0, lin_v)
+                _h = 0.1 * math.cos(home_heading_rad) * max(0.0, lin_v)
+                reward += _h
+                self._reward_breakdown['home'] += _h
 
-            # Fire avoidance: directional penalty when fireball is visible
             if self.fireball_visible:
-                fire_size = min(self.fireball_area / 5000.0, 1.0)
-                reward -= 1.5 * fire_size * (1.0 - abs(self.fireball_cx))
+                self._fire_visible_count += 1
 
             reward -= 0.005
+            self._reward_breakdown['step'] -= 0.005
+
+        if done:
+            bd = self._reward_breakdown
+            total = sum(bd.values())
+            rospy.loginfo(
+                f"[Bot0] EP_BREAKDOWN steps={self.step_count} total={total:+.1f} | "
+                f"gas={bd['gas_find']:+.1f} bearing={bd['bearing']:+.1f} "
+                f"camera={bd['camera']:+.1f} explore={bd['explore']:+.1f} "
+                f"wall={bd['wall']:+.1f} fire={bd['fire']:+.1f} "
+                f"reverse={bd['reverse']:+.1f} home={bd['home']:+.1f} "
+                f"step={bd['step']:+.1f} terminal={bd['terminal']:+.1f} | "
+                f"fire_vis={self._fire_visible_count}/{self.step_count} "
+                f"wall_close={self._wall_proximity_count}/{self.step_count}"
+            )
 
         return obs, reward, done, False, {}
 
@@ -473,6 +524,9 @@ class HazardWorldEnv(gym.Env):
         self.step_count       = 0
         self.stuck_steps      = 0
         self.visited_cells    = set()
+        self._reward_breakdown     = {k: 0.0 for k in self._reward_breakdown}
+        self._fire_visible_count   = 0
+        self._wall_proximity_count = 0
         self.pose             = None
         self.yaw              = 0.0
         self.roll             = 0.0
