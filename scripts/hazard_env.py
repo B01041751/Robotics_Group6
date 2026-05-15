@@ -2,8 +2,11 @@
 import os
 import sys
 import math
+import random
 import signal
 import subprocess
+import threading
+import time
 
 import rospy
 import rospkg
@@ -16,13 +19,13 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import Image, LaserScan
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-from gazebo_msgs.msg import ContactsState
+from gazebo_msgs.msg import ContactsState, ModelState
+from gazebo_msgs.srv import SetModelState
 from std_srvs.srv import Empty
 from com760cw2_group6.srv import Group6StartBug2
 
 
 def _load_spawn_config():
-    """Load spawn_config.env into os.environ if gas positions are not already set."""
     if os.environ.get('GAS1_X') is not None:
         return
     try:
@@ -42,8 +45,10 @@ def _load_spawn_config():
 
 
 class HazardWorldEnv(gym.Env):
-    def __init__(self):
+    def __init__(self, randomise_gas=True, oscillate_fire=False):
         super().__init__()
+        self.randomise_gas  = randomise_gas
+        self.oscillate_fire = oscillate_fire
         _load_spawn_config()
 
         self.ns = "/Group6Bot_0"
@@ -60,8 +65,14 @@ class HazardWorldEnv(gym.Env):
         self.start_background_music()
 
         rospy.wait_for_service('/gazebo/reset_simulation')
-        self.reset_proxy   = rospy.ServiceProxy('/gazebo/reset_simulation', Empty)
-        self.unpause_proxy = rospy.ServiceProxy('/gazebo/unpause_physics', Empty)
+        self.reset_proxy      = rospy.ServiceProxy('/gazebo/reset_simulation', Empty)
+        self.unpause_proxy    = rospy.ServiceProxy('/gazebo/unpause_physics', Empty)
+        rospy.wait_for_service('/gazebo/set_model_state')
+        self.set_model_state  = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
+
+        # Gazebo model names for the three gas clouds and their victim decorations
+        self.gas_model_names  = ['gas_zone_1',   'gas_zone_2',   'gas_zone_3']
+        self.gas_victim_names = ['gas_victim_1', 'gas_victim_2', 'gas_victim_3']
 
         # Bot 1 reset — restart Bug2 from its new spawn position after each Gazebo reset
         self._bot1_start_svc = None
@@ -109,15 +120,17 @@ class HazardWorldEnv(gym.Env):
         home_y = float(os.environ.get('BOT0_Y', '-1.5'))
         self.home = (home_x, home_y)
 
-        for i in range(1, N_GAS + 1):
-            rospy.Subscriber(f'/gas_{i}/contact', ContactsState,
-                             lambda msg, idx=i-1: self._gas_contact_cb(msg, idx))
+        # Contact-based gas detection disabled (Round 3): gas positions are randomised per
+        # episode so fixed-world contact topics are unreliable. Proximity check handles finds.
+        # for i in range(1, N_GAS + 1):
+        #     rospy.Subscriber(f'/gas_{i}/contact', ContactsState,
+        #                      lambda msg, idx=i-1: self._gas_contact_cb(msg, idx))
 
         self.gas_contact_flags = [False] * N_GAS
         self.in_gas           = False
         self.step_count       = 0
         self.stuck_steps      = 0
-        self.MAX_STEPS        = 3000
+        self.MAX_STEPS        = 1500
 
         self._reward_breakdown = {
             'gas_find': 0.0, 'bearing': 0.0, 'camera':  0.0,
@@ -134,7 +147,7 @@ class HazardWorldEnv(gym.Env):
         self.visited_cells = set()
 
         # Fire positions — bot respawns if it gets within FIRE_DANGER_RADIUS metres
-        self.FIRE_DANGER_RADIUS = 1.5
+        self.FIRE_DANGER_RADIUS = 0.2
         self.fire_positions = []
         i = 1
         while True:
@@ -146,6 +159,17 @@ class HazardWorldEnv(gym.Env):
             i += 1
         if not self.fire_positions:
             self.fire_positions = [(-2.0, 1.5), (3.5, -3.0)]
+
+        # Optional fire oscillation — circles of radius 0.5 m, 4 s period
+        self._fire_osc_running = False
+        self._fire_osc_thread  = None
+        if self.oscillate_fire:
+            self._fire_centers = list(self.fire_positions)
+            self._fire_osc_running = True
+            self._fire_osc_thread  = threading.Thread(
+                target=self._fire_oscillation_loop, daemon=True
+            )
+            self._fire_osc_thread.start()
 
         self.action_space = gym.spaces.Box(
             low=np.array( [-0.4, -1.0], dtype=np.float32),
@@ -252,6 +276,7 @@ class HazardWorldEnv(gym.Env):
                 self.green_cx = ((M['m10'] / M['m00']) / w * 2.0 - 1.0) if M['m00'] > 0 else 0.0
             else:
                 self.green_cx = 0.0
+
         except Exception:
             pass
 
@@ -268,6 +293,83 @@ class HazardWorldEnv(gym.Env):
                'Group6Bot_0' in state.collision2_name:
                 self.on_fire = True
                 return
+
+    # ------------------------------------------------------------------ #
+    #  Gas randomisation (Round 3)                                        #
+    # ------------------------------------------------------------------ #
+
+    def _randomise_gas_positions(self):
+        if not self.randomise_gas:
+            return
+        ARENA_MIN,    ARENA_MAX    = -8.5, 8.5
+        MIN_FROM_HOME = 3.0
+        MIN_FROM_FIRE = 2.5
+        MIN_GAS_GAP   = 4.0
+
+        new_positions = []
+        for i in range(len(self.gas_positions)):
+            placed = False
+            for _ in range(200):
+                x = random.uniform(ARENA_MIN, ARENA_MAX)
+                y = random.uniform(ARENA_MIN, ARENA_MAX)
+                if math.hypot(x - self.home[0], y - self.home[1]) < MIN_FROM_HOME:
+                    continue
+                if any(math.hypot(x - fx, y - fy) < MIN_FROM_FIRE
+                       for fx, fy in self.fire_positions):
+                    continue
+                if any(math.hypot(x - px, y - py) < MIN_GAS_GAP
+                       for px, py in new_positions):
+                    continue
+                new_positions.append((x, y))
+                placed = True
+                break
+            if not placed:
+                new_positions.append(self.gas_positions[i])
+                rospy.logwarn(f"[Bot0] Gas {i+1}: no valid placement after 200 tries — keeping previous position")
+
+        self.gas_positions = new_positions
+
+        # Move Gazebo visual models to match the new Python positions.
+        # gas_zone z=0.05 (flat cylinder), gas_victim z=0.05 with roll=1.57 (person upright).
+        for i, (x, y) in enumerate(self.gas_positions):
+            zone_state = ModelState()
+            zone_state.model_name          = self.gas_model_names[i]
+            zone_state.pose.position.x     = x
+            zone_state.pose.position.y     = y
+            zone_state.pose.position.z     = 0.05
+            zone_state.pose.orientation.w  = 1.0
+            zone_state.twist.linear.x      = 0.0
+            zone_state.twist.linear.y      = 0.0
+            zone_state.twist.linear.z      = 0.0
+            zone_state.twist.angular.x     = 0.0
+            zone_state.twist.angular.y     = 0.0
+            zone_state.twist.angular.z     = 0.0
+            zone_state.reference_frame     = 'world'
+
+            victim_state = ModelState()
+            victim_state.model_name          = self.gas_victim_names[i]
+            victim_state.pose.position.x     = x
+            victim_state.pose.position.y     = y
+            victim_state.pose.position.z     = 0.05
+            # roll=1.57 keeps the person mesh upright (world-file default orientation)
+            victim_state.pose.orientation.x  = math.sin(1.57 / 2.0)
+            victim_state.pose.orientation.w  = math.cos(1.57 / 2.0)
+            victim_state.twist.linear.x      = 0.0
+            victim_state.twist.linear.y      = 0.0
+            victim_state.twist.linear.z      = 0.0
+            victim_state.twist.angular.x     = 0.0
+            victim_state.twist.angular.y     = 0.0
+            victim_state.twist.angular.z     = 0.0
+            victim_state.reference_frame     = 'world'
+
+            try:
+                self.set_model_state(zone_state)
+                self.set_model_state(victim_state)
+            except rospy.ServiceException as e:
+                rospy.logwarn(f"[Bot0] Failed to move {self.gas_model_names[i]} to ({x:.2f},{y:.2f}): {e}")
+
+        pos_str = "  ".join(f"G{i+1}=({x:.2f},{y:.2f})" for i, (x, y) in enumerate(self.gas_positions))
+        rospy.loginfo(f"[Bot0] Gas randomised: {pos_str}")
 
     # ------------------------------------------------------------------ #
     #  Observation                                                         #
@@ -348,7 +450,7 @@ class HazardWorldEnv(gym.Env):
             now = rospy.Time.now()
             scan_age  = (now - self.last_scan_time).to_sec()  if self.last_scan_time  else -1.0
             image_age = (now - self.last_image_time).to_sec() if self.last_image_time else -1.0
-            rospy.loginfo(f"[Bot0] sensor sync — scan_age={scan_age:.3f}s  camera_age={image_age:.3f}s  step_dt=0.05s")
+            rospy.loginfo(f"[Bot0] sensor sync — scan_age={scan_age:.3f}s  camera_age={image_age:.3f}s  step_dt=0.1s")
         obs          = self.get_obs()
         reward, done = 0.0, False
 
@@ -364,15 +466,15 @@ class HazardWorldEnv(gym.Env):
                     reward += 0.2
                     self._reward_breakdown['explore'] += 0.2
 
-        # --- Contact-sensor gas finds (async callbacks set flags; reward here) ---
-        for i in range(len(self.gas_positions)):
-            if self.gas_contact_flags[i] and not self.gas_visited[i]:
-                self.gas_visited[i] = True
-                self.play_alarm()
-                reward += 10.0
-                self._reward_breakdown['gas_find'] += 10.0
-                rospy.loginfo(f"[Bot0] Gas {i+1} found by contact ({sum(self.gas_visited)}/{len(self.gas_positions)})")
-            self.gas_contact_flags[i] = False
+        # Contact-sensor gas finds disabled (Round 3) — proximity check below handles all finds.
+        # for i in range(len(self.gas_positions)):
+        #     if self.gas_contact_flags[i] and not self.gas_visited[i]:
+        #         self.gas_visited[i] = True
+        #         self.play_alarm()
+        #         reward += 10.0
+        #         self._reward_breakdown['gas_find'] += 10.0
+        #         rospy.loginfo(f"[Bot0] Gas {i+1} found by contact ...")
+        #     self.gas_contact_flags[i] = False
 
         # --- Proximity-based gas detection (distance check each step) ---
         prev_count = sum(self.gas_visited)
@@ -508,6 +610,7 @@ class HazardWorldEnv(gym.Env):
             rospy.sleep(1.2)
         except Exception:
             pass
+        self._randomise_gas_positions()
         self.gas_visited       = [False] * len(self.gas_positions)
         self.gas_contact_flags = [False] * len(self.gas_positions)
         self.all_gas_found    = False
@@ -542,6 +645,41 @@ class HazardWorldEnv(gym.Env):
         self.laser_sectors = np.ones(8) * 10.0
         self.on_fire       = False
         return self.get_obs(), {}
+
+    # ------------------------------------------------------------------ #
+    #  Fire oscillation                                                    #
+    # ------------------------------------------------------------------ #
+
+    def _fire_oscillation_loop(self):
+        RADIUS = 0.5   # metres
+        PERIOD = 4.0   # seconds per full rotation
+        FIRE_Z = 0.55  # match world-file pose height
+        t = 0.0
+        dt = 0.05      # 20 Hz
+        while self._fire_osc_running and not rospy.is_shutdown():
+            t += dt
+            for i, (cx, cy) in enumerate(self._fire_centers):
+                angle = 2.0 * math.pi * t / PERIOD
+                x = cx + RADIUS * math.cos(angle)
+                y = cy + RADIUS * math.sin(angle)
+                self.fire_positions[i] = (x, y)
+                state = ModelState()
+                state.model_name         = f'fire_{i + 1}'
+                state.pose.position.x    = x
+                state.pose.position.y    = y
+                state.pose.position.z    = FIRE_Z
+                state.pose.orientation.w = 1.0
+                state.reference_frame    = 'world'
+                try:
+                    self.set_model_state(state)
+                except Exception:
+                    pass
+            time.sleep(dt)
+
+    def close(self):
+        self._fire_osc_running = False
+        self.cleanup_audio()
+        super().close()
 
     def __del__(self):
         self.cleanup_audio()

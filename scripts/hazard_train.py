@@ -27,7 +27,7 @@ except ImportError:
     sys.exit(1)
 
 
-TOTAL_STEPS     = 1_500_000
+TOTAL_STEPS     =   750_000
 CHECKPOINT_FREQ =   5_000
 
 
@@ -143,10 +143,17 @@ def main():
     # ------------------------------------------------------------------ #
     raw_env = DummyVecEnv([lambda: make_env(log_dir)])
 
-    if os.path.exists(vecnorm_path):
-        print(f"--- LOADING VecNormalize stats: {vecnorm_path} ---")
+    vecnorm_candidates = [
+        vecnorm_path,
+        vecnorm_path + ".interrupted",
+        vecnorm_path + ".latest",
+    ]
+    vecnorm_from = next((p for p in vecnorm_candidates if os.path.exists(p)), None)
+
+    if vecnorm_from is not None:
+        print(f"--- LOADING VecNormalize stats: {vecnorm_from} ---")
         try:
-            env = VecNormalize.load(vecnorm_path, raw_env)
+            env = VecNormalize.load(vecnorm_from, raw_env)
             expected = raw_env.observation_space.shape
             if env.obs_rms.mean.shape != expected:
                 raise ValueError(
@@ -156,7 +163,7 @@ def main():
             env.norm_reward = True
         except Exception as e:
             print(f"⚠️  VecNormalize load failed ({e}) — discarding stale stats.")
-            os.rename(vecnorm_path, vecnorm_path + ".incompatible")
+            os.rename(vecnorm_from, vecnorm_from + ".incompatible")
             env = VecNormalize(
                 raw_env, norm_obs=True, norm_reward=True, clip_obs=10.0, gamma=0.98
             )
@@ -166,8 +173,8 @@ def main():
             raw_env,
             norm_obs=True,
             norm_reward=True,
-            clip_obs=10.0,        # clip normalised obs to [-10, 10]
-            gamma=0.98,           # must match PPO gamma for correct return normalisation
+            clip_obs=10.0,
+            gamma=0.98,
         )
 
     # ------------------------------------------------------------------ #
@@ -191,21 +198,26 @@ def main():
     # ------------------------------------------------------------------ #
     #  Load or create PPO model                                            #
     # ------------------------------------------------------------------ #
-    full_zip_path = model_path + ".zip"
+    candidate_paths = [
+        model_path + ".zip",
+        model_path + "_interrupted.zip",
+        model_path + "_latest.zip",
+    ]
+    load_from = next((p for p in candidate_paths if os.path.exists(p)), None)
     model = None
 
-    if os.path.exists(full_zip_path):
-        print(f"--- LOADING EXISTING MODEL: {full_zip_path} ---")
+    if load_from is not None:
+        print(f"--- RESUMING FROM: {load_from} ---")
         try:
             model = PPO.load(
-                model_path,
+                load_from.replace(".zip", ""),
                 env=env,
                 device="cpu",
                 tensorboard_log=tensorboard_dir if use_tb else None,
             )
         except Exception as e:
             print(f"⚠️  Could not load model ({e}). Starting fresh.")
-            os.rename(full_zip_path, full_zip_path + ".incompatible")
+            os.rename(load_from, load_from + ".incompatible")
             model = None
 
     if model is None:
@@ -219,7 +231,7 @@ def main():
             batch_size=256,      # larger minibatch → stabler gradient estimates
             n_epochs=10,
             gamma=0.98,
-            ent_coef=0.01,       # low entropy — dense gas signal means less random exploration needed
+            ent_coef=0.015,      # slightly higher entropy for randomised gas positions (harder problem)
             clip_range=0.2,
             tensorboard_log=tensorboard_dir if use_tb else None,
             device="cpu",

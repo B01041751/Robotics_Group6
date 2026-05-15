@@ -486,7 +486,7 @@ def generate_world(output_path):
       </visual>
       <collision name="c">
         <geometry><cylinder><radius>1.0</radius><length>0.1</length></cylinder></geometry>
-        <surface><contact><collide_bitmask>0x01</collide_bitmask></contact><friction><ode><mu>0</mu><mu2>0</mu2></ode></friction></surface>
+        <surface><contact><collide_bitmask>0x0000</collide_bitmask></contact><friction><ode><mu>0</mu><mu2>0</mu2></ode></friction></surface>
       </collision>
       <sensor name="contact_{i+1}" type="contact">
         <always_on>true</always_on>
@@ -504,7 +504,6 @@ def generate_world(output_path):
     <static>true</static>
     <pose>{gx:.2f} {gy:.2f} 0.05 1.57 0 0</pose>
     <link name="link">
-      <collision name="c"><geometry><box><size>0.25 0.9 0.2</size></box></geometry></collision>
       <visual name="v">
         <cast_shadows>false</cast_shadows>
         <geometry>

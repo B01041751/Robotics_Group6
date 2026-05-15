@@ -1,0 +1,36 @@
+<launch>
+    <arg name="bot1_x"   default="$(env BOT1_X)"/>
+    <arg name="bot1_y"   default="$(env BOT1_Y)"/>
+    <arg name="bot1_z"   default="$(env BOT1_Z)"/>
+    <arg name="bot1_yaw" default="$(env BOT1_YAW)"/>
+    <arg name="goal_x"   default="$(env GAS1_X)"/>
+    <arg name="goal_y"   default="$(env GAS1_Y)"/>
+
+    <param name="Group6Bot_1/robot_description"
+           command="$(find xacro)/xacro '$(find com760cw2_group6)/urdf/Group6Bot_1.urdf.xacro'" />
+
+    <node pkg="gazebo_ros" type="spawn_model" name="spawn_urdf_1"
+          args="-urdf -model Group6Bot_1
+                -x $(arg bot1_x) -y $(arg bot1_y) -z $(arg bot1_z) -Y $(arg bot1_yaw)
+                -param Group6Bot_1/robot_description" />
+
+    <node pkg="robot_state_publisher" type="robot_state_publisher" name="rsp_1">
+        <remap from="robot_description" to="Group6Bot_1/robot_description" />
+        <remap from="joint_states"      to="Group6Bot_1/joint_states" />
+    </node>
+    <node pkg="joint_state_publisher" type="joint_state_publisher" name="jsp_1">
+        <remap from="robot_description" to="Group6Bot_1/robot_description"/>
+        <remap from="joint_states"      to="Group6Bot_1/joint_states"/>
+    </node>
+
+    <node pkg="com760cw2_group6" type="Group6_Bot_Bug2_Algorithm.py" name="bot1_bug2"
+          ns="Group6Bot_1" output="screen">
+        <param name="auto_start" value="true"/>
+        <param name="goal_x"     value="$(arg goal_x)"/>
+        <param name="goal_y"     value="$(arg goal_y)"/>
+    </node>
+
+    <node pkg="com760cw2_group6" type="Group6Bot_1_camera_view.py" name="Bot1_Camera"
+          ns="Group6Bot_1" output="screen" />
+
+</launch>
