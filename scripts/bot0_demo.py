@@ -2,6 +2,7 @@
 import os
 import sys
 import rospy
+import rospkg
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -15,8 +16,8 @@ except ImportError:
     print("stable-baselines3 not installed. Run: pip3 install stable-baselines3")
     sys.exit(1)
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(script_dir)
+script_dir = os.path.join(rospkg.RosPack().get_path('com760cw2_group6'), 'scripts')
+sys.path.insert(0, script_dir)
 
 try:
     from hazard_env import HazardWorldEnv

@@ -1,0 +1,3 @@
+<launch>
+    <node pkg="com760cw2_group6" type="bot0_demo.py" name="bot0_demo" output="screen" required="true"/>
+</launch>

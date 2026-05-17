@@ -16,7 +16,7 @@ def _load_spawn_config():
                     line = line[7:]
                 if '=' in line and not line.startswith('#'):
                     key, _, val = line.partition('=')
-                    os.environ.setdefault(key.strip(), val.strip())
+                    os.environ[key.strip()] = val.strip()
     except Exception as e:
         print(f'[bot1] WARNING: Could not load spawn_config.env: {e}')
 
@@ -37,8 +37,12 @@ def _delete_existing():
 def main():
     _load_spawn_config()
 
-    goal_x = os.environ.get('GAS1_X', '?')
-    goal_y = os.environ.get('GAS1_Y', '?')
+    goal_x = os.environ.get('GAS1_X')
+    goal_y = os.environ.get('GAS1_Y')
+
+    if not goal_x or not goal_y:
+        print('[bot1] ERROR: GAS1_X/GAS1_Y not found in spawn_config.env — cannot start')
+        return
 
     print('\n' + '=' * 60)
     print('  DEMO: Bot 1 — Bug2 navigation')
@@ -51,7 +55,11 @@ def main():
     pkg_path    = rospkg.RosPack().get_path('com760cw2_group6')
     launch_file = os.path.join(pkg_path, 'launch', 'bot1_demo.launch')
 
-    proc = subprocess.Popen(['roslaunch', launch_file])
+    proc = subprocess.Popen([
+        'roslaunch', launch_file,
+        f'goal_x:={goal_x}',
+        f'goal_y:={goal_y}',
+    ])
 
     print('[bot1] Running... (Ctrl-C to stop)\n')
 
