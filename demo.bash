@@ -2,7 +2,7 @@
 export DISABLE_ROS1_EOL_WARNINGS=1
 cd /home/hashie/catkin_ws
 catkin_make
-python3 src/com760cw2_group6/scripts/generate_world.py
+roslaunch com760cw2_group6 generate_world.launch
 source src/com760cw2_group6/worlds/spawn_config.env
 
 # Launch Gazebo in background so we can start the fire oscillator once it's ready

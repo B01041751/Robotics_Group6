@@ -1,0 +1,4 @@
+<launch>
+    <node pkg="com760cw2_group6" type="generate_world.py" name="generate_world"
+          output="screen" required="true"/>
+</launch>

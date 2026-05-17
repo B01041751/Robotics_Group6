@@ -670,7 +670,10 @@ def generate_world(output_path):
 
 
 if __name__ == '__main__':
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    pkg_dir = os.path.dirname(script_dir)
+    try:
+        import rospkg
+        pkg_dir = rospkg.RosPack().get_path('com760cw2_group6')
+    except Exception:
+        pkg_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     output = os.path.join(pkg_dir, 'worlds', 'environment_foot.world')
     generate_world(output)
