@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
-import math
 import os
-import sys
-
-import rospy
-import roslaunch
+import subprocess
+import time
 import rospkg
-from gazebo_msgs.srv import DeleteModel
-from nav_msgs.msg import Odometry
 
 
 def _load_spawn_config():
@@ -28,12 +23,13 @@ def _load_spawn_config():
 
 def _delete_existing():
     try:
-        rospy.wait_for_service('/gazebo/delete_model', timeout=5.0)
-        svc  = rospy.ServiceProxy('/gazebo/delete_model', DeleteModel)
-        resp = svc('Group6Bot_1')
-        if resp.success:
+        result = subprocess.run(
+            ['rosservice', 'call', '/gazebo/delete_model', '{model_name: Group6Bot_1}'],
+            capture_output=True, text=True, timeout=5.0
+        )
+        if 'success: True' in result.stdout:
             print('[bot1] Removed previous Bot 1 from Gazebo')
-        rospy.sleep(0.5)
+        time.sleep(0.5)
     except Exception:
         pass
 
@@ -41,51 +37,34 @@ def _delete_existing():
 def main():
     _load_spawn_config()
 
-    goal_x = float(os.environ.get('GAS1_X', '0.0'))
-    goal_y = float(os.environ.get('GAS1_Y', '0.0'))
+    goal_x = os.environ.get('GAS1_X', '?')
+    goal_y = os.environ.get('GAS1_Y', '?')
 
     print('\n' + '=' * 60)
     print('  DEMO: Bot 1 — Bug2 navigation')
     print(f'  Spawn : ({os.environ.get("BOT1_X","?")} , {os.environ.get("BOT1_Y","?")})')
-    print(f'  Goal  : Gas Zone 1 ({goal_x:.2f}, {goal_y:.2f})')
+    print(f'  Goal  : Gas Zone 1 ({goal_x}, {goal_y})')
     print('=' * 60 + '\n')
-
-    rospy.init_node('bot1_demo_monitor', anonymous=True)
 
     _delete_existing()
 
     pkg_path    = rospkg.RosPack().get_path('com760cw2_group6')
     launch_file = os.path.join(pkg_path, 'launch', 'bot1_demo.launch')
 
-    uuid   = roslaunch.rlutil.get_or_generate_uuid(None, False)
-    roslaunch.configure_logging(uuid)
-    launch = roslaunch.parent.ROSLaunchParent(uuid, [(launch_file, [])])
-    launch.start()
+    proc = subprocess.Popen(['roslaunch', launch_file])
 
-    pos = [None]
-
-    def _odom_cb(msg):
-        pos[0] = (msg.pose.pose.position.x, msg.pose.pose.position.y)
-
-    rospy.Subscriber('/Group6Bot_1/odom', Odometry, _odom_cb)
-
-    print('[bot1] Navigating... (Ctrl-C to stop)\n')
+    print('[bot1] Running... (Ctrl-C to stop)\n')
 
     try:
-        rate = rospy.Rate(5)
-        while not rospy.is_shutdown():
-            if pos[0] is not None:
-                dist = math.hypot(goal_x - pos[0][0], goal_y - pos[0][1])
-                if dist < 0.3:
-                    print(f'\n[bot1] Goal reached! dist={dist:.3f} m')
-                    break
-            rate.sleep()
-    except (KeyboardInterrupt, SystemExit):
+        proc.wait()
+    except KeyboardInterrupt:
         print('\n[bot1] Stopped')
     finally:
-        launch.shutdown()
-        if not rospy.is_shutdown():
-            rospy.signal_shutdown('Bot 1 demo complete')
+        proc.terminate()
+        try:
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
 
     print('[bot1] Done\n')
 

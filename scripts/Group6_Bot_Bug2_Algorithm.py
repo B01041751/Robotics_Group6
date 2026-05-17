@@ -11,6 +11,7 @@ from com760cw2_group6.srv import (
     Group6StartBug2,
     Group6StartBug2Response
 )
+from com760cw2_group6.msg import BotAlert
 
 GO_TO_GOAL = "GO_TO_GOAL"
 FOLLOW_WALL = "FOLLOW_WALL"
@@ -71,6 +72,9 @@ class Bug2:
             Group6StartBug2,
             self.start_callback
         )
+
+        self._alert_pub = rospy.Publisher('alert', BotAlert, queue_size=10)
+        rospy.Subscriber('/Group6Bot_0/alert', BotAlert, self._bot0_alert_cb)
 
         rospy.loginfo("Bug2 service ready")
 
@@ -156,6 +160,20 @@ class Bug2:
         )
 
         svc(goal_x, goal_y)
+
+    def _publish_alert(self, alert_type, x, y):
+        msg = BotAlert()
+        msg.bot_id     = 'bot1'
+        msg.alert_type = alert_type
+        msg.x          = float(x)
+        msg.y          = float(y)
+        self._alert_pub.publish(msg)
+
+    _ALERT_NAMES = {BotAlert.GAS: 'GAS', BotAlert.FIREBALL: 'FIREBALL', BotAlert.OBSTACLE: 'OBSTACLE'}
+
+    def _bot0_alert_cb(self, msg):
+        label = self._ALERT_NAMES.get(msg.alert_type, str(msg.alert_type))
+        rospy.loginfo(f"[Bot1] [Custom Message] from {msg.bot_id}: {label} at ({msg.x:.2f}, {msg.y:.2f})")
 
     # -------------------------------------------------
     # SERVICE
@@ -289,6 +307,7 @@ class Bug2:
 
         if dist < GOAL_THRESHOLD:
             rospy.loginfo("SUCCESS: Goal reached!")
+            self._publish_alert(BotAlert.GAS, self.goal_x, self.goal_y)
 
             self.active = False
             self.cmd_pub.publish(Twist())
@@ -481,6 +500,7 @@ class Bug2:
             self.wall_lost_steps = 0
 
             self.mode = FOLLOW_WALL
+            self._publish_alert(BotAlert.OBSTACLE, self.x, self.y)
 
     # -------------------------------------------------
     # FOLLOW WALL

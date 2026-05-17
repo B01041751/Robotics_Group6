@@ -23,6 +23,7 @@ from gazebo_msgs.msg import ContactsState, ModelState
 from gazebo_msgs.srv import SetModelState
 from std_srvs.srv import Empty
 from com760cw2_group6.srv import Group6StartBug2
+from com760cw2_group6.msg import BotAlert
 
 
 def _load_spawn_config():
@@ -52,13 +53,15 @@ class HazardWorldEnv(gym.Env):
         _load_spawn_config()
 
         self.ns = "/Group6Bot_0"
-        self.cmd_vel_pub = rospy.Publisher(f'{self.ns}/cmd_vel', Twist, queue_size=10)
+        self.cmd_vel_pub  = rospy.Publisher(f'{self.ns}/cmd_vel', Twist, queue_size=10)
+        self._alert_pub   = rospy.Publisher('/Group6Bot_0/alert', BotAlert, queue_size=10)
+        rospy.Subscriber('/Group6Bot_1/alert', BotAlert, self._bot1_alert_cb)
 
         _pkg = rospkg.RosPack().get_path('com760cw2_group6')
         self.bg_music_path = os.path.join(_pkg, 'sound', 'beto.wav')
         self.alarm_path    = os.path.join(_pkg, 'sound', 'alarm.wav')
         self.music_process = None
-        self.alarm_played  = False
+        self._last_obstacle_alert_t = 0.0
 
         signal.signal(signal.SIGINT,  self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -84,10 +87,11 @@ class HazardWorldEnv(gym.Env):
             rospy.logwarn("[Bot0 env] /Group6Bot_1/start_bug2 not available — Bot1 will not be reset")
 
         self.laser_sectors    = np.ones(8) * 10.0
-        self.last_scan_time   = None
-        self.last_image_time  = None
-        self.fireball_visible = False
-        self.fireball_area    = 0
+        self.last_scan_time      = None
+        self.last_image_time     = None
+        self.fireball_visible    = False
+        self._prev_fireball_vis  = False
+        self.fireball_area       = 0
         self.fireball_cx      = 0.0   # horizontal centre, -1=left, +1=right
         self.green_visible    = False
         self.green_area       = 0
@@ -217,12 +221,10 @@ class HazardWorldEnv(gym.Env):
                 pass
 
     def play_alarm(self):
-        if not self.alarm_played:
-            try:
-                subprocess.Popen(['aplay', '-q', self.alarm_path])
-                self.alarm_played = True
-            except Exception:
-                pass
+        try:
+            subprocess.Popen(['aplay', '-q', self.alarm_path])
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------ #
     #  ROS callbacks                                                       #
@@ -259,8 +261,13 @@ class HazardWorldEnv(gym.Env):
 
             # Fireball (orange-red hue)
             fire_mask          = cv2.inRange(hsv, np.array([0, 80, 80]), np.array([20, 255, 255]))
-            self.fireball_area = int(np.sum(fire_mask) / 255)
+            self.fireball_area    = int(np.sum(fire_mask) / 255)
             self.fireball_visible = self.fireball_area > 500
+            if self.fireball_visible and not self._prev_fireball_vis and self.pose:
+                nearest = min(self.fire_positions,
+                              key=lambda f: math.hypot(self.pose.position.x - f[0], self.pose.position.y - f[1]))
+                self._publish_alert(BotAlert.FIREBALL, nearest[0], nearest[1])
+            self._prev_fireball_vis = self.fireball_visible
             if self.fireball_visible:
                 M = cv2.moments(fire_mask)
                 self.fireball_cx = ((M['m10'] / M['m00']) / w * 2.0 - 1.0) if M['m00'] > 0 else 0.0
@@ -279,6 +286,20 @@ class HazardWorldEnv(gym.Env):
 
         except Exception:
             pass
+
+    def _publish_alert(self, alert_type, x, y):
+        msg = BotAlert()
+        msg.bot_id     = 'bot0'
+        msg.alert_type = alert_type
+        msg.x          = float(x)
+        msg.y          = float(y)
+        self._alert_pub.publish(msg)
+
+    _ALERT_NAMES = {BotAlert.GAS: 'GAS', BotAlert.FIREBALL: 'FIREBALL', BotAlert.OBSTACLE: 'OBSTACLE'}
+
+    def _bot1_alert_cb(self, msg):
+        label = self._ALERT_NAMES.get(msg.alert_type, str(msg.alert_type))
+        rospy.loginfo(f"[Bot0] [Custom Message] from {msg.bot_id}: {label} at ({msg.x:.2f}, {msg.y:.2f})")
 
     def _gas_contact_cb(self, msg, idx):
         for state in msg.states:
@@ -486,6 +507,7 @@ class HazardWorldEnv(gym.Env):
                     reward += 10.0
                     self._reward_breakdown['gas_find'] += 10.0
                     rospy.loginfo(f"[Bot0] Gas {i+1} found ({sum(self.gas_visited)}/{len(self.gas_positions)})")
+                    self._publish_alert(BotAlert.GAS, gx, gy)
 
         if all(self.gas_visited) and not self.all_gas_found:
             self.all_gas_found = True
@@ -539,6 +561,10 @@ class HazardWorldEnv(gym.Env):
             reward += _w
             self._reward_breakdown['wall'] += _w
             self._wall_proximity_count += 1
+            now = time.time()
+            if now - self._last_obstacle_alert_t > 5.0 and self.pose:
+                self._publish_alert(BotAlert.OBSTACLE, self.pose.position.x, self.pose.position.y)
+                self._last_obstacle_alert_t = now
             # Only count as stuck when also barely moving — wall-following is not stuck
             if abs(lin_v) + abs(ang_v) < 0.15:
                 self.stuck_steps += 1
@@ -614,7 +640,6 @@ class HazardWorldEnv(gym.Env):
         self.gas_visited       = [False] * len(self.gas_positions)
         self.gas_contact_flags = [False] * len(self.gas_positions)
         self.all_gas_found    = False
-        self.alarm_played     = False
         self.on_fire          = False
         self.in_gas           = False
         self.green_visible    = False

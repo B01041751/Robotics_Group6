@@ -6,7 +6,7 @@ python3 src/com760cw2_group6/scripts/generate_world.py
 source src/com760cw2_group6/worlds/spawn_config.env
 
 # Launch Gazebo in background so we can start the fire oscillator once it's ready
-roslaunch com760cw2_group6 group_6_launch.launch > /tmp/demo_gazebo.log 2>&1 &
+roslaunch com760cw2_group6 group_6_launch.launch > ~/demo_gazebo.log 2>&1 &
 LAUNCH_PID=$!
 
 cleanup() {
@@ -25,7 +25,7 @@ until rosservice info /gazebo/set_model_state > /dev/null 2>&1; do
     sleep 2
     ELAPSED=$((ELAPSED + 2))
     if [ "$ELAPSED" -ge 60 ]; then
-        echo "[demo] ERROR: Gazebo not ready after 60s — see /tmp/demo_gazebo.log"
+        echo "[demo] ERROR: Gazebo not ready after 60s — see ~/demo_gazebo.log"
         cleanup
     fi
 done

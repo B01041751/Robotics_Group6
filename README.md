@@ -91,6 +91,5 @@ urdf/
   Group6Bot_0.urdf.xacro
   Group6Bot_1.urdf.xacro
 demo.bash                   # Terminal 1 entry point
-bot1_demo.bash              # Alternative CLI entry for Bot 1
 run.bash                    # Training entry point
 ```
